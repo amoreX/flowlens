@@ -13,7 +13,7 @@ html, body, #root {
 }
 
 body {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-base);
   color: var(--text-primary);
   background: var(--bg-primary);
@@ -63,17 +63,17 @@ body {
   bottom: 0;
   width: 5px;
   cursor: col-resize;
-  background: var(--border-subtle);
+  background: var(--border);
   z-index: 100;
   transition: background var(--transition-fast);
 }
 
 .split-resize-handle:hover,
 .split-resize-handle.dragging {
-  background: var(--cyan-dim);
+  background: var(--accent);
 }
 
-/* Scrollbar styling */
+/* Scrollbar styling — dark */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -84,17 +84,17 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--border-medium);
+  background: rgba(255, 255, 255, 0.1);
   border-radius: var(--radius-full);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--text-tertiary);
+  background: rgba(255, 255, 255, 0.18);
 }
 
 /* Selection */
 ::selection {
-  background: var(--cyan-glow-strong);
+  background: var(--accent-bg-strong);
   color: var(--text-primary);
 }
 

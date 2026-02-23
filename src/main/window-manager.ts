@@ -16,7 +16,7 @@ export function createMainWindow(): BrowserWindow {
     minHeight: 600,
     show: false,
     titleBarStyle: 'hiddenInset',
-    backgroundColor: '#0a0e1a',
+    backgroundColor: '#1c1c1c',
     trafficLightPosition: { x: 16, y: 16 },
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
