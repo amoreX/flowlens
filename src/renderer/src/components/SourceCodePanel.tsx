@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import type { SourceHitMap } from '../hooks/useSourceHitMap'
-import type { CapturedEvent, SourceLocation, SourceResponse } from '../types/events'
+import type { SourceHitMap, SourceFileCache } from '../hooks/useSourceHitMap'
+import type { CapturedEvent, SourceLocation } from '../types/events'
 import { parseAllUserFrames, extractDisplayPath } from '../utils/stack-parser'
 import { tokenizeLine } from '../utils/syntax'
 import '../assets/source-panel.css'
@@ -8,42 +8,49 @@ import '../assets/source-panel.css'
 interface SourceCodePanelProps {
   hitMap: SourceHitMap
   focusedEvent: CapturedEvent | null
+  focusedTraceEvents?: CapturedEvent[]
 }
 
-// Lines hit within the last 2 seconds get the "recent" glow
-const RECENT_THRESHOLD_MS = 2000
-
-export function SourceCodePanel({ hitMap, focusedEvent }: SourceCodePanelProps) {
-  if (focusedEvent) {
-    return <FocusedSourceView event={focusedEvent} />
+export function SourceCodePanel({ hitMap, focusedEvent, focusedTraceEvents }: SourceCodePanelProps) {
+  if (focusedEvent && focusedTraceEvents) {
+    return (
+      <FocusedSourceView
+        event={focusedEvent}
+        traceEvents={focusedTraceEvents}
+        sourceCache={hitMap.sourceCache}
+      />
+    )
   }
   return <LiveSourceView hitMap={hitMap} />
 }
 
-// ── Live Mode (no event selected — hit map) ──────────────────────────
+// ── Live Mode: per-trace highlights ──────────────────────────────────
 
 function LiveSourceView({ hitMap }: { hitMap: SourceHitMap }) {
-  const { files, fileOrder, activeFile, setActiveFile, lastHitLine } = hitMap
+  const { currentTraceHits, sourceCache, currentFileOrder, activeFile, setActiveFile } = hitMap
   const codeAreaRef = useRef<HTMLDivElement>(null)
-  const lastScrolledLine = useRef<number | null>(null)
-
-  const currentFile = activeFile ? files.get(activeFile) : null
+  const lastScrollTarget = useRef<string | null>(null)
 
   // Auto-scroll to latest hit line
   useEffect(() => {
-    if (!lastHitLine || lastHitLine === lastScrolledLine.current) return
-    lastScrolledLine.current = lastHitLine
+    if (!currentTraceHits?.latestFile || !currentTraceHits.latestLine) return
+    const scrollKey = `${currentTraceHits.latestFile}:${currentTraceHits.latestLine}`
+    if (scrollKey === lastScrollTarget.current) return
+    lastScrollTarget.current = scrollKey
+
+    // Only scroll if we're viewing the file that has the latest hit
+    if (activeFile !== currentTraceHits.latestFile) return
 
     requestAnimationFrame(() => {
       if (!codeAreaRef.current) return
-      const el = codeAreaRef.current.querySelector(`[data-line="${lastHitLine}"]`)
+      const el = codeAreaRef.current.querySelector(`[data-line="${currentTraceHits.latestLine}"]`)
       if (el) {
         el.scrollIntoView({ block: 'center', behavior: 'smooth' })
       }
     })
-  }, [lastHitLine, activeFile])
+  }, [currentTraceHits, activeFile])
 
-  if (fileOrder.length === 0) {
+  if (!currentTraceHits || currentFileOrder.length === 0) {
     return (
       <div className="source-panel">
         <div className="source-panel-status">
@@ -56,11 +63,14 @@ function LiveSourceView({ hitMap }: { hitMap: SourceHitMap }) {
     )
   }
 
+  const currentFileData = activeFile ? currentTraceHits.files.get(activeFile) : null
+  const currentSource = activeFile ? sourceCache.get(activeFile) : null
+
   return (
     <div className="source-panel">
       <div className="source-file-tabs">
-        {fileOrder.map((fp) => {
-          const fileData = files.get(fp)!
+        {currentFileOrder.map((fp) => {
+          const fileData = currentTraceHits.files.get(fp)!
           return (
             <button
               key={fp}
@@ -74,16 +84,17 @@ function LiveSourceView({ hitMap }: { hitMap: SourceHitMap }) {
         })}
       </div>
 
-      {currentFile && currentFile.loading && (
+      {currentSource?.loading && (
         <div className="source-panel-loading">Loading source...</div>
       )}
-      {currentFile && currentFile.error && (
-        <div className="source-panel-error">{currentFile.error}</div>
+      {currentSource?.error && (
+        <div className="source-panel-error">{currentSource.error}</div>
       )}
-      {currentFile && currentFile.content && (
-        <LiveSourceContent
-          content={currentFile.content}
-          hitLines={currentFile.lines}
+      {currentSource?.content && currentFileData && (
+        <SourceCodeContent
+          content={currentSource.content}
+          hitLines={currentFileData.lines}
+          seq={currentTraceHits.seq}
           codeAreaRef={codeAreaRef}
         />
       )}
@@ -91,30 +102,238 @@ function LiveSourceView({ hitMap }: { hitMap: SourceHitMap }) {
   )
 }
 
-interface LiveSourceContentProps {
+// ── Focus Mode: per-trace all-event highlights with call stack ───────
+
+interface FocusedSourceViewProps {
+  event: CapturedEvent
+  traceEvents: CapturedEvent[]
+  sourceCache: Map<string, SourceFileCache>
+}
+
+/** Collected highlight data for all events in a trace */
+interface TraceHighlights {
+  /** All unique files referenced */
+  files: Map<string, { displayPath: string; lines: Map<number, { count: number; isCurrentEvent: boolean; isLatest: boolean }> }>
+  /** File order (most recently referenced first) */
+  fileOrder: string[]
+}
+
+function computeTraceHighlights(
+  traceEvents: CapturedEvent[],
+  currentEventId: string
+): TraceHighlights {
+  const files = new Map<string, { displayPath: string; lines: Map<number, { count: number; isCurrentEvent: boolean; isLatest: boolean }> }>()
+  const fileLastHit = new Map<string, number>()
+  let latestFile: string | null = null
+  let latestLine: number | null = null
+  let latestTs = 0
+
+  for (const ev of traceEvents) {
+    const frames = parseAllUserFrames(ev.sourceStack)
+    const isCurrent = ev.id === currentEventId
+
+    for (let fi = 0; fi < frames.length; fi++) {
+      const frame = frames[fi]
+      let fileData = files.get(frame.filePath)
+      if (!fileData) {
+        fileData = {
+          displayPath: extractDisplayPath(frame.filePath),
+          lines: new Map()
+        }
+        files.set(frame.filePath, fileData)
+      }
+      fileLastHit.set(frame.filePath, Math.max(fileLastHit.get(frame.filePath) ?? 0, ev.timestamp))
+
+      const existing = fileData.lines.get(frame.line)
+      if (existing) {
+        existing.count++
+        // Upgrade to current event if this event matches
+        if (isCurrent) existing.isCurrentEvent = true
+      } else {
+        fileData.lines.set(frame.line, {
+          count: 1,
+          isCurrentEvent: isCurrent,
+          isLatest: false
+        })
+      }
+
+      // Track the overall latest line (from the current event's first frame)
+      if (isCurrent && fi === 0 && ev.timestamp >= latestTs) {
+        latestTs = ev.timestamp
+        latestFile = frame.filePath
+        latestLine = frame.line
+      }
+    }
+  }
+
+  // Mark latest
+  if (latestFile && latestLine !== null) {
+    const fd = files.get(latestFile)
+    const hit = fd?.lines.get(latestLine)
+    if (hit) hit.isLatest = true
+  }
+
+  // Sort files by most recently hit
+  const fileOrder = Array.from(files.keys()).sort((a, b) =>
+    (fileLastHit.get(b) ?? 0) - (fileLastHit.get(a) ?? 0)
+  )
+
+  return { files, fileOrder }
+}
+
+function FocusedSourceView({ event, traceEvents, sourceCache }: FocusedSourceViewProps) {
+  // Call stack frames for the current event
+  const frames = useMemo(() => parseAllUserFrames(event.sourceStack), [event.id])
+  const [activeFrameIndex, setActiveFrameIndex] = useState(0)
+  const codeAreaRef = useRef<HTMLDivElement>(null)
+
+  // Compute highlights for ALL events in the trace
+  const highlights = useMemo(
+    () => computeTraceHighlights(traceEvents, event.id),
+    [traceEvents, event.id]
+  )
+
+  const activeFrame = frames[activeFrameIndex] as SourceLocation | undefined
+
+  // Which file are we viewing?
+  const viewingFile = activeFrame?.filePath ?? highlights.fileOrder[0] ?? null
+
+  // Fetch source if not cached
+  useEffect(() => {
+    if (!viewingFile) return
+    const cached = sourceCache.get(viewingFile)
+    if (!cached && viewingFile) {
+      // Source will be fetched by useSourceHitMap when it processes events
+      // But in case it hasn't yet, trigger a fetch
+      window.flowlens.fetchSource(viewingFile)
+    }
+  }, [viewingFile, sourceCache])
+
+  // Reset frame index when event changes
+  useEffect(() => {
+    setActiveFrameIndex(0)
+  }, [event.id])
+
+  // Scroll to target line
+  useEffect(() => {
+    if (!activeFrame) return
+    const cached = sourceCache.get(activeFrame.filePath)
+    if (!cached?.content) return
+
+    requestAnimationFrame(() => {
+      if (!codeAreaRef.current) return
+      const el = codeAreaRef.current.querySelector(`[data-line="${activeFrame.line}"]`)
+      if (el) {
+        el.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      }
+    })
+  }, [activeFrame, sourceCache])
+
+  if (frames.length === 0 && highlights.fileOrder.length === 0) {
+    return (
+      <div className="source-panel">
+        <div className="source-panel-status">
+          <div className="source-panel-status-icon">?</div>
+          <div className="source-panel-status-text">
+            No source location available for this event.
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const currentSource = viewingFile ? sourceCache.get(viewingFile) : null
+  const fileHighlights = viewingFile ? highlights.files.get(viewingFile) : null
+
+  return (
+    <div className="source-panel">
+      {/* File tabs — all files in trace */}
+      <div className="source-file-tabs">
+        {highlights.fileOrder.map((fp) => {
+          const fd = highlights.files.get(fp)!
+          return (
+            <button
+              key={fp}
+              className={`source-file-tab${fp === viewingFile ? ' active' : ''}`}
+              onClick={() => {
+                // Find a frame in this file if possible
+                const idx = frames.findIndex((f) => f.filePath === fp)
+                if (idx >= 0) setActiveFrameIndex(idx)
+                else setActiveFrameIndex(-1) // no frame, just view file
+              }}
+              title={fp}
+            >
+              {fd.displayPath}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Call Stack for current event */}
+      {frames.length > 0 && (
+        <div className="call-stack-panel">
+          <div className="call-stack-title">Call Stack</div>
+          <div className="call-stack-frames">
+            {frames.map((frame, i) => (
+              <button
+                key={i}
+                className={`call-stack-frame${i === activeFrameIndex ? ' active' : ''}`}
+                onClick={() => setActiveFrameIndex(i)}
+              >
+                <span className="call-stack-fn">{frame.functionName || '(anonymous)'}</span>
+                <span className="call-stack-loc">
+                  {extractDisplayPath(frame.filePath)}:{frame.line}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Source code */}
+      {currentSource?.loading && <div className="source-panel-loading">Loading source...</div>}
+      {currentSource?.error && <div className="source-panel-error">{currentSource.error}</div>}
+      {currentSource?.content && (
+        <FocusedSourceContent
+          content={currentSource.content}
+          focusLine={activeFrame?.line ?? null}
+          traceLines={fileHighlights?.lines ?? null}
+          eventId={event.id}
+          codeAreaRef={codeAreaRef}
+        />
+      )}
+    </div>
+  )
+}
+
+// ── Shared source rendering ──────────────────────────────────────────
+
+interface SourceCodeContentProps {
   content: string
-  hitLines: Map<number, { count: number; lastTimestamp: number }>
+  hitLines: Map<number, { count: number; isLatest: boolean }>
+  seq: number
   codeAreaRef: React.RefObject<HTMLDivElement | null>
 }
 
-function LiveSourceContent({ content, hitLines, codeAreaRef }: LiveSourceContentProps) {
+function SourceCodeContent({ content, hitLines, seq, codeAreaRef }: SourceCodeContentProps) {
   const allLines = content.split('\n')
-  const now = Date.now()
 
   return (
     <div className="source-code-area" ref={codeAreaRef}>
       {allLines.map((lineContent, i) => {
         const lineNum = i + 1
         const hit = hitLines.get(lineNum)
-        const isRecent = hit && (now - hit.lastTimestamp) < RECENT_THRESHOLD_MS
-        const hitClass = hit ? (isRecent ? ' hit-recent' : ' hit-old') : ''
+        let hitClass = ''
+        if (hit) {
+          hitClass = hit.isLatest ? ' hit-latest' : ' hit-trace'
+        }
+
+        // Use seq in key for highlighted lines so React recreates the DOM element,
+        // replaying the CSS pulse animation even when the same line is re-highlighted
+        const key = hit ? `${lineNum}-${seq}` : lineNum
 
         return (
-          <div
-            key={lineNum}
-            data-line={lineNum}
-            className={`source-panel-line${hitClass}`}
-          >
+          <div key={key} data-line={lineNum} className={`source-panel-line${hitClass}`}>
             <span className="source-panel-line-number">{lineNum}</span>
             <code
               className="source-panel-line-content"
@@ -130,140 +349,45 @@ function LiveSourceContent({ content, hitLines, codeAreaRef }: LiveSourceContent
   )
 }
 
-// ── Focus Mode (event selected — call stack navigation) ──────────────
-
-function FocusedSourceView({ event }: { event: CapturedEvent }) {
-  const frames = useMemo(() => parseAllUserFrames(event.sourceStack), [event.id])
-  const [activeFrameIndex, setActiveFrameIndex] = useState(0)
-  const [sourceContent, setSourceContent] = useState<string | null>(null)
-  const [sourceError, setSourceError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
-  const codeAreaRef = useRef<HTMLDivElement>(null)
-
-  const activeFrame = frames[activeFrameIndex] as SourceLocation | undefined
-
-  // Reset frame index when event changes
-  useEffect(() => {
-    setActiveFrameIndex(0)
-  }, [event.id])
-
-  // Fetch source for active frame
-  useEffect(() => {
-    if (!activeFrame) {
-      setSourceContent(null)
-      setSourceError(null)
-      return
-    }
-
-    setLoading(true)
-    setSourceContent(null)
-    setSourceError(null)
-
-    window.flowlens.fetchSource(activeFrame.filePath).then((result: SourceResponse) => {
-      if (result.error !== undefined) {
-        setSourceError(result.error)
-      } else {
-        setSourceContent(result.content!)
-      }
-      setLoading(false)
-    })
-  }, [activeFrame?.filePath])
-
-  // Scroll to target line
-  useEffect(() => {
-    if (!sourceContent || !activeFrame) return
-    requestAnimationFrame(() => {
-      if (!codeAreaRef.current) return
-      const el = codeAreaRef.current.querySelector(`[data-line="${activeFrame.line}"]`)
-      if (el) {
-        el.scrollIntoView({ block: 'center', behavior: 'smooth' })
-      }
-    })
-  }, [sourceContent, activeFrame?.line, activeFrame?.filePath])
-
-  if (frames.length === 0) {
-    return (
-      <div className="source-panel">
-        <div className="source-panel-status">
-          <div className="source-panel-status-icon">?</div>
-          <div className="source-panel-status-text">
-            No source location available for this event.
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="source-panel">
-      {/* File tab showing current file */}
-      {activeFrame && (
-        <div className="source-file-tabs">
-          <span className="source-file-tab active">
-            {extractDisplayPath(activeFrame.filePath)}:{activeFrame.line}
-          </span>
-        </div>
-      )}
-
-      {/* Call Stack */}
-      <div className="call-stack-panel">
-        <div className="call-stack-title">Call Stack</div>
-        <div className="call-stack-frames">
-          {frames.map((frame, i) => (
-            <button
-              key={i}
-              className={`call-stack-frame${i === activeFrameIndex ? ' active' : ''}`}
-              onClick={() => setActiveFrameIndex(i)}
-            >
-              <span className="call-stack-fn">{frame.functionName || '(anonymous)'}</span>
-              <span className="call-stack-loc">
-                {extractDisplayPath(frame.filePath)}:{frame.line}
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Source Code */}
-      {loading && <div className="source-panel-loading">Loading source...</div>}
-      {sourceError && <div className="source-panel-error">{sourceError}</div>}
-      {sourceContent && activeFrame && (
-        <FocusedSourceContent
-          content={sourceContent}
-          targetLine={activeFrame.line}
-          codeAreaRef={codeAreaRef}
-        />
-      )}
-    </div>
-  )
-}
-
 interface FocusedSourceContentProps {
   content: string
-  targetLine: number
+  focusLine: number | null
+  traceLines: Map<number, { count: number; isCurrentEvent: boolean; isLatest: boolean }> | null
+  eventId: string
   codeAreaRef: React.RefObject<HTMLDivElement | null>
 }
 
-function FocusedSourceContent({ content, targetLine, codeAreaRef }: FocusedSourceContentProps) {
+function FocusedSourceContent({ content, focusLine, traceLines, eventId, codeAreaRef }: FocusedSourceContentProps) {
   const allLines = content.split('\n')
 
   return (
     <div className="source-code-area" ref={codeAreaRef}>
       {allLines.map((lineContent, i) => {
         const lineNum = i + 1
-        const isTarget = lineNum === targetLine
+        const traceHit = traceLines?.get(lineNum)
+        const isFocus = lineNum === focusLine
+
+        let hitClass = ''
+        if (isFocus) {
+          hitClass = ' hit-latest'
+        } else if (traceHit?.isCurrentEvent) {
+          hitClass = ' hit-current-event'
+        } else if (traceHit) {
+          hitClass = ' hit-trace'
+        }
+
+        const key = hitClass ? `${lineNum}-${eventId}` : lineNum
 
         return (
-          <div
-            key={lineNum}
-            data-line={lineNum}
-            className={`source-panel-line${isTarget ? ' focus-target' : ''}`}
-          >
+          <div key={key} data-line={lineNum} className={`source-panel-line${hitClass}`}>
             <span className="source-panel-line-number">{lineNum}</span>
             <code
               className="source-panel-line-content"
               dangerouslySetInnerHTML={{ __html: tokenizeLine(lineContent) }}
             />
+            {traceHit && traceHit.count > 1 && (
+              <span className="source-hit-badge">{traceHit.count > 99 ? '99+' : traceHit.count}</span>
+            )}
           </div>
         )
       })}

@@ -1,115 +1,229 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import type { CapturedEvent } from '../types/events'
-import { parseUserSourceLocation, extractDisplayPath } from '../utils/stack-parser'
+import { parseAllUserFrames, extractDisplayPath } from '../utils/stack-parser'
 
 export interface LineHit {
   count: number
   lastTimestamp: number
+  /** true if this was the most recent event's hit (deepest highlight) */
+  isLatest: boolean
 }
 
 export interface FileHitData {
   filePath: string
   displayPath: string
   lines: Map<number, LineHit>
-  lastHitTimestamp: number
+}
+
+export interface TraceHitData {
+  traceId: string
+  files: Map<string, FileHitData>
+  /** The last event's primary line (deepest color) */
+  latestFile: string | null
+  latestLine: number | null
+  /** Monotonically increasing sequence number — forces React re-render even if same lines */
+  seq: number
+}
+
+/** Cached source file content, shared across all traces */
+export interface SourceFileCache {
   content: string | null
   loading: boolean
   error: string | null
 }
 
 export interface SourceHitMap {
-  files: Map<string, FileHitData>
-  fileOrder: string[]
+  /** Hit data for the current (most recent) trace — live mode */
+  currentTraceHits: TraceHitData | null
+  /** All trace hits indexed by traceId — for focus mode */
+  allTraceHits: Map<string, TraceHitData>
+  /** Source file content cache */
+  sourceCache: Map<string, SourceFileCache>
+  /** Ordered file list for current trace */
+  currentFileOrder: string[]
+  /** Active file in live mode */
   activeFile: string | null
-  setActiveFile: (filePath: string) => void
-  lastHitLine: number | null
+  setActiveFile: (fp: string) => void
+}
+
+let globalSeq = 0
+
+/** Compute hits for a set of events, marking the latest event's lines */
+function computeTraceHits(traceId: string, events: CapturedEvent[]): TraceHitData {
+  const files = new Map<string, FileHitData>()
+  let latestFile: string | null = null
+  let latestLine: number | null = null
+  let latestTimestamp = 0
+
+  for (const event of events) {
+    const frames = parseAllUserFrames(event.sourceStack)
+    for (let fi = 0; fi < frames.length; fi++) {
+      const frame = frames[fi]
+      let fileData = files.get(frame.filePath)
+      if (!fileData) {
+        fileData = {
+          filePath: frame.filePath,
+          displayPath: extractDisplayPath(frame.filePath),
+          lines: new Map()
+        }
+        files.set(frame.filePath, fileData)
+      }
+
+      const existing = fileData.lines.get(frame.line)
+      if (existing) {
+        existing.count++
+        existing.lastTimestamp = Math.max(existing.lastTimestamp, event.timestamp)
+        existing.isLatest = false // reset, set below
+      } else {
+        fileData.lines.set(frame.line, {
+          count: 1,
+          lastTimestamp: event.timestamp,
+          isLatest: false
+        })
+      }
+
+      // Track the latest event's primary (first) frame
+      if (fi === 0 && event.timestamp >= latestTimestamp) {
+        latestTimestamp = event.timestamp
+        latestFile = frame.filePath
+        latestLine = frame.line
+      }
+    }
+  }
+
+  // Mark the latest line
+  if (latestFile && latestLine !== null) {
+    const fileData = files.get(latestFile)
+    if (fileData) {
+      const hit = fileData.lines.get(latestLine)
+      if (hit) hit.isLatest = true
+    }
+  }
+
+  return { traceId, files, latestFile, latestLine, seq: ++globalSeq }
 }
 
 export function useSourceHitMap(): SourceHitMap {
-  const [files, setFiles] = useState<Map<string, FileHitData>>(new Map())
+  const [currentTraceHits, setCurrentTraceHits] = useState<TraceHitData | null>(null)
+  const [allTraceHits, setAllTraceHits] = useState<Map<string, TraceHitData>>(new Map())
+  const [sourceCache, setSourceCache] = useState<Map<string, SourceFileCache>>(new Map())
   const [activeFile, setActiveFile] = useState<string | null>(null)
-  const [lastHitLine, setLastHitLine] = useState<number | null>(null)
-  const filesRef = useRef<Map<string, FileHitData>>(new Map())
+
+  const allTraceHitsRef = useRef<Map<string, TraceHitData>>(new Map())
+  const sourceCacheRef = useRef<Map<string, SourceFileCache>>(new Map())
+  const currentTraceIdRef = useRef<string | null>(null)
+  const traceEventsRef = useRef<Map<string, CapturedEvent[]>>(new Map())
   const fetchedRef = useRef<Set<string>>(new Set())
 
-  const processEvent = useCallback((event: CapturedEvent) => {
-    const location = parseUserSourceLocation(event.sourceStack)
-    if (!location) return
+  const fetchSourceIfNeeded = useCallback((filePath: string) => {
+    if (fetchedRef.current.has(filePath)) return
+    fetchedRef.current.add(filePath)
 
-    const { filePath, line } = location
-    const map = filesRef.current
-    let fileData = map.get(filePath)
+    const cache = new Map(sourceCacheRef.current)
+    cache.set(filePath, { content: null, loading: true, error: null })
+    sourceCacheRef.current = cache
+    setSourceCache(cache)
 
-    if (!fileData) {
-      fileData = {
-        filePath,
-        displayPath: extractDisplayPath(filePath),
-        lines: new Map(),
-        lastHitTimestamp: event.timestamp,
-        content: null,
-        loading: false,
-        error: null
+    window.flowlens.fetchSource(filePath).then((result) => {
+      const updated = new Map(sourceCacheRef.current)
+      if (result.error !== undefined) {
+        updated.set(filePath, { content: null, loading: false, error: result.error })
+      } else {
+        updated.set(filePath, { content: result.content!, loading: false, error: null })
       }
-      map.set(filePath, fileData)
-
-      // Fetch source content
-      if (!fetchedRef.current.has(filePath)) {
-        fetchedRef.current.add(filePath)
-        fileData.loading = true
-
-        window.flowlens.fetchSource(filePath).then((result) => {
-          const current = filesRef.current.get(filePath)
-          if (!current) return
-
-          if (result.error !== undefined) {
-            current.error = result.error
-            current.loading = false
-          } else {
-            current.content = result.content!
-            current.loading = false
-          }
-          setFiles(new Map(filesRef.current))
-        })
-      }
-    }
-
-    // Update hit count
-    const existing = fileData.lines.get(line)
-    if (existing) {
-      existing.count++
-      existing.lastTimestamp = event.timestamp
-    } else {
-      fileData.lines.set(line, { count: 1, lastTimestamp: event.timestamp })
-    }
-    fileData.lastHitTimestamp = event.timestamp
-
-    filesRef.current = new Map(map)
-    setFiles(filesRef.current)
-    setActiveFile(filePath)
-    setLastHitLine(line)
+      sourceCacheRef.current = updated
+      setSourceCache(updated)
+    })
   }, [])
 
+  const processEvent = useCallback((event: CapturedEvent) => {
+    const { traceId } = event
+
+    // Accumulate events per trace
+    const eventsMap = traceEventsRef.current
+    if (!eventsMap.has(traceId)) {
+      eventsMap.set(traceId, [])
+    }
+    eventsMap.get(traceId)!.push(event)
+
+    // Recompute hits for this trace
+    const traceEvents = eventsMap.get(traceId)!
+    const hits = computeTraceHits(traceId, traceEvents)
+
+    // Fetch source for any new files
+    for (const filePath of hits.files.keys()) {
+      fetchSourceIfNeeded(filePath)
+    }
+
+    // Always store in the all-traces map
+    allTraceHitsRef.current = new Map(allTraceHitsRef.current)
+    allTraceHitsRef.current.set(traceId, hits)
+    setAllTraceHits(allTraceHitsRef.current)
+
+    // Update current trace display ONLY if this trace has source-bearing events.
+    // This prevents the flash-to-empty when a DOM click event arrives (no user frames)
+    // before the console.log/fetch events that DO have user frames.
+    if (hits.files.size > 0) {
+      currentTraceIdRef.current = traceId
+      setCurrentTraceHits(hits)
+      setActiveFile(hits.latestFile)
+    }
+  }, [fetchSourceIfNeeded])
+
   useEffect(() => {
-    // Process existing traces
+    // Load existing traces
     window.flowlens.getAllTraces().then((traces) => {
       for (const t of traces) {
         for (const ev of t.events) {
-          processEvent(ev)
+          const eventsMap = traceEventsRef.current
+          if (!eventsMap.has(ev.traceId)) {
+            eventsMap.set(ev.traceId, [])
+          }
+          eventsMap.get(ev.traceId)!.push(ev)
+        }
+      }
+
+      // Compute hits for all traces
+      const allHits = new Map<string, TraceHitData>()
+      for (const [traceId, events] of traceEventsRef.current) {
+        const hits = computeTraceHits(traceId, events)
+        allHits.set(traceId, hits)
+        for (const fp of hits.files.keys()) {
+          fetchSourceIfNeeded(fp)
+        }
+      }
+      allTraceHitsRef.current = allHits
+      setAllTraceHits(allHits)
+
+      // Set current trace to most recent that has source files
+      if (traces.length > 0) {
+        for (const t of traces) {
+          const hits = allHits.get(t.id)
+          if (hits && hits.files.size > 0) {
+            currentTraceIdRef.current = t.id
+            setCurrentTraceHits(hits)
+            setActiveFile(hits.latestFile)
+            break
+          }
         }
       }
     })
 
-    // Subscribe to live events
     const unsubscribe = window.flowlens.onTraceEvent(processEvent)
     return unsubscribe
-  }, [processEvent])
+  }, [processEvent, fetchSourceIfNeeded])
 
-  // Compute file order sorted by most recently hit
-  const fileOrder = Array.from(files.keys()).sort((a, b) => {
-    const fa = files.get(a)!
-    const fb = files.get(b)!
-    return fb.lastHitTimestamp - fa.lastHitTimestamp
-  })
+  // File order for current trace
+  const currentFileOrder = currentTraceHits
+    ? Array.from(currentTraceHits.files.keys())
+    : []
 
-  return { files, fileOrder, activeFile, setActiveFile, lastHitLine }
+  return {
+    currentTraceHits,
+    allTraceHits,
+    sourceCache,
+    currentFileOrder,
+    activeFile,
+    setActiveFile
+  }
 }

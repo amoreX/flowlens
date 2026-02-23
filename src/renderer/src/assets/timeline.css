@@ -75,12 +75,11 @@
 }
 
 .traces-column {
-  width: 40%;
-  min-width: 220px;
+  min-width: 160px;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid var(--border-subtle);
   overflow: hidden;
+  flex-shrink: 0;
 }
 
 .source-column {
@@ -88,22 +87,52 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  min-width: 0;
+  min-width: 160px;
+}
+
+/* Resize handles */
+.resize-handle-v {
+  width: 5px;
+  cursor: col-resize;
+  background: var(--border-subtle);
+  flex-shrink: 0;
+  transition: background var(--transition-fast);
+  position: relative;
+  z-index: 10;
+}
+
+.resize-handle-v:hover,
+.resize-handle-v.dragging {
+  background: var(--cyan-dim);
+}
+
+.resize-handle-h {
+  height: 5px;
+  cursor: row-resize;
+  background: var(--border-subtle);
+  flex-shrink: 0;
+  transition: background var(--transition-fast);
+  position: relative;
+  z-index: 10;
+}
+
+.resize-handle-h:hover,
+.resize-handle-h.dragging {
+  background: var(--cyan-dim);
 }
 
 /* Console section at bottom */
 .console-section {
   flex-shrink: 0;
-  height: 180px;
-  border-top: 1px solid var(--border-subtle);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   position: relative;
+  min-height: 32px;
 }
 
 .console-section.collapsed {
-  height: 32px;
+  height: 32px !important;
 }
 
 .console-section-header {
@@ -277,11 +306,44 @@
 .trace-group-time {
   font-size: var(--text-xs);
   color: var(--text-tertiary);
+  font-family: var(--font-mono);
 }
 
-.trace-group-duration {
-  font-size: var(--text-xs);
-  color: var(--amber-dim);
+/* Focus source button */
+.trace-focus-btn {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: var(--text-tertiary);
+  background: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 1px 6px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  line-height: 1;
+  opacity: 0;
+}
+
+.trace-group-header:hover .trace-focus-btn {
+  opacity: 1;
+}
+
+.trace-focus-btn:hover {
+  color: var(--cyan);
+  border-color: var(--cyan);
+  background: var(--cyan-glow);
+}
+
+/* Focused trace group */
+.trace-group.focused {
+  border-color: var(--cyan-dim);
+}
+
+.trace-group.focused .trace-focus-btn {
+  opacity: 1;
+  color: var(--cyan);
+  border-color: var(--cyan);
 }
 
 /* Event badge (count) */

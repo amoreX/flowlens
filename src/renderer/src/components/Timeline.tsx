@@ -6,10 +6,11 @@ interface TimelineProps {
   selectedEventId: string | null
   focusedEventId: string | null
   onSelectEvent: (event: CapturedEvent) => void
+  onFocusTrace: (traceId: string) => void
   onClear: () => void
 }
 
-export function Timeline({ traces, selectedEventId, focusedEventId, onSelectEvent, onClear }: TimelineProps) {
+export function Timeline({ traces, selectedEventId, focusedEventId, onSelectEvent, onFocusTrace, onClear }: TimelineProps) {
   return (
     <div className="timeline">
       <div className="timeline-header">
@@ -36,6 +37,7 @@ export function Timeline({ traces, selectedEventId, focusedEventId, onSelectEven
             selectedEventId={selectedEventId}
             focusedEventId={focusedEventId}
             onSelectEvent={onSelectEvent}
+            onFocusTrace={onFocusTrace}
           />
         ))
       )}

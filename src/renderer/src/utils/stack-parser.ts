@@ -67,6 +67,9 @@ function isInstrumentationFrame(filePath: string, functionName?: string): boolea
   // Known instrumentation function names
   if (functionName === 'send' || functionName === 'uid') return true
 
+  // Skip library/framework internals (node_modules, .vite deps)
+  if (/node_modules|\.vite\/deps/.test(filePath)) return true
+
   return false
 }
 

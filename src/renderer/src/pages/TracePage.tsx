@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { useTraceEvents } from '../hooks/useTraceEvents'
 import { useConsoleEntries } from '../hooks/useConsoleEntries'
 import { useSourceHitMap } from '../hooks/useSourceHitMap'
@@ -31,6 +31,66 @@ export function TracePage({ targetUrl, onStop }: TracePageProps) {
   // Source hit map (live mode)
   const sourceHitMap = useSourceHitMap()
 
+  // ── Resize state ──
+  const [tracesWidth, setTracesWidth] = useState(280)
+  const [consoleHeight, setConsoleHeight] = useState(180)
+  const [dragging, setDragging] = useState<'v' | 'h' | null>(null)
+  const tracePageRef = useRef<HTMLDivElement>(null)
+
+  // Vertical resize (traces | source)
+  const onVDragStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    setDragging('v')
+    const startX = e.clientX
+    const startW = tracesWidth
+
+    const onMove = (me: MouseEvent): void => {
+      const parent = tracePageRef.current
+      if (!parent) return
+      const parentRect = parent.getBoundingClientRect()
+      const newW = Math.max(160, Math.min(parentRect.width - 160, startW + (me.clientX - startX)))
+      setTracesWidth(newW)
+    }
+    const onUp = (): void => {
+      setDragging(null)
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }, [tracesWidth])
+
+  // Horizontal resize (main | console)
+  const onHDragStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    setDragging('h')
+    const startY = e.clientY
+    const startH = consoleHeight
+
+    const onMove = (me: MouseEvent): void => {
+      const newH = Math.max(60, Math.min(500, startH - (me.clientY - startY)))
+      setConsoleHeight(newH)
+    }
+    const onUp = (): void => {
+      setDragging(null)
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }, [consoleHeight])
+
+  // Prevent text selection while dragging
+  useEffect(() => {
+    if (dragging) {
+      document.body.style.userSelect = 'none'
+      document.body.style.cursor = dragging === 'v' ? 'col-resize' : 'row-resize'
+    } else {
+      document.body.style.userSelect = ''
+      document.body.style.cursor = ''
+    }
+  }, [dragging])
+
   // Get the focused trace's events
   const focusedTrace = useMemo(() => {
     if (!focusedTraceId) return null
@@ -39,7 +99,6 @@ export function TracePage({ targetUrl, onStop }: TracePageProps) {
 
   const focusedEvent = focusedTrace?.events[focusedEventIndex] ?? null
 
-  // When user clicks an event in the timeline
   const handleSelectEvent = useCallback((event: CapturedEvent) => {
     setSelectedEvent(event)
     setFocusedTraceId(event.traceId)
@@ -68,6 +127,14 @@ export function TracePage({ targetUrl, onStop }: TracePageProps) {
     }
   }, [focusedEventIndex, focusedTrace])
 
+  const handleFocusTrace = useCallback((traceId: string) => {
+    const trace = traces.find((t) => t.id === traceId)
+    if (!trace || trace.events.length === 0) return
+    setFocusedTraceId(traceId)
+    setFocusedEventIndex(0)
+    setSelectedEvent(trace.events[0])
+  }, [traces])
+
   const handleCloseFlow = useCallback(() => {
     setFocusedTraceId(null)
     setFocusedEventIndex(0)
@@ -75,24 +142,31 @@ export function TracePage({ targetUrl, onStop }: TracePageProps) {
   }, [])
 
   return (
-    <div className="trace-page">
+    <div className="trace-page" ref={tracePageRef}>
       <StatusBar url={targetUrl} eventCount={eventCount} onStop={onStop} />
 
       <div className="main-content">
-        <div className="traces-column">
+        <div className="traces-column" style={{ width: tracesWidth }}>
           <Timeline
             traces={traces}
             selectedEventId={selectedEvent?.id ?? null}
             focusedEventId={focusedEvent?.id ?? null}
             onSelectEvent={handleSelectEvent}
+            onFocusTrace={handleFocusTrace}
             onClear={clearTraces}
           />
         </div>
+
+        <div
+          className={`resize-handle-v${dragging === 'v' ? ' dragging' : ''}`}
+          onMouseDown={onVDragStart}
+        />
 
         <div className="source-column">
           <SourceCodePanel
             hitMap={sourceHitMap}
             focusedEvent={focusedEvent}
+            focusedTraceEvents={focusedTrace?.events}
           />
           {focusedTrace && (
             <FlowNavigator
@@ -106,7 +180,15 @@ export function TracePage({ targetUrl, onStop }: TracePageProps) {
         </div>
       </div>
 
-      <div className={`console-section${consoleCollapsed ? ' collapsed' : ''}`}>
+      <div
+        className={`resize-handle-h${dragging === 'h' ? ' dragging' : ''}`}
+        onMouseDown={consoleCollapsed ? undefined : onHDragStart}
+      />
+
+      <div
+        className={`console-section${consoleCollapsed ? ' collapsed' : ''}`}
+        style={consoleCollapsed ? undefined : { height: consoleHeight }}
+      >
         <div className="console-section-header" onClick={() => setConsoleCollapsed(!consoleCollapsed)}>
           <span className={`console-section-chevron${consoleCollapsed ? '' : ' expanded'}`}>&#9654;</span>
           <span className="console-section-title">Console</span>
