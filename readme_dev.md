@@ -62,20 +62,21 @@ FlowLens runs three Electron processes that communicate via IPC:
 └──────────┬────────────────────────────────┬─────────────────┘
            │ IPC                            │ IPC
            ▼                                ▼
-┌─────────────────────┐        ┌──────────────────────────────┐
-│    TARGET VIEW       │        │       RENDERER (React UI)    │
-│  (WebContentsView)   │        │       (BrowserWindow)        │
-│                      │        │                              │
-│  Loads user's URL    │        │  Right 45% of window         │
-│  Left 55% of window  │        │  Timeline + Source + Console │
-│  Sandboxed           │        │                              │
-│  IIFE injected here  │        │  Subscribes to live events   │
-└──────────────────────┘        └──────────────────────────────┘
+┌─────────────────────┐  ◄─drag─►  ┌──────────────────────────┐
+│    TARGET VIEW       │  handle    │    RENDERER (React UI)   │
+│  (WebContentsView)   │            │    (BrowserWindow)       │
+│                      │            │                          │
+│  Loads user's URL    │            │  Timeline + Source +     │
+│  Default 55% width   │            │  Console + FlowNav       │
+│  Sandboxed           │            │                          │
+│  IIFE injected here  │            │  Subscribes to events    │
+└──────────────────────┘            └──────────────────────────┘
 ```
 
 - **Main process** — owns the trace engine, handles IPC, manages both views
 - **Target view** — sandboxed WebContentsView that loads the user's site; instrumentation IIFE runs here
 - **Renderer** — the React UI that displays traces, source code, and console output
+- **Split boundary** — draggable handle in App.tsx controls the ratio (default 55/45, clamped 20–80%). Renderer updates local state for immediate feedback, then sends ratio to main via `target:set-split` IPC to resize the WebContentsView bounds
 
 ---
 
@@ -131,6 +132,15 @@ A click or submit generates a **new trace ID**. All subsequent events (network c
 ### Stack capture
 
 Every event captures `new Error().stack` at the moment it fires. This V8 stack trace is later parsed in the renderer to identify which file and line in user code triggered the event.
+
+### React component extraction
+
+After capturing the V8 stack, the IIFE walks the React fiber tree (via `__reactFiber$` on DOM elements) to extract component-level source locations. Two paths are supported:
+
+- **React 19** — reads `fiber._debugStack` which contains a full V8 error stack from element creation. Extracts and deduplicates user frames (filters out node_modules, .vite/deps, FlowLens internals, react-stack-top-frame).
+- **React 18 fallback** — reads `fiber._debugSource` (Babel transform annotations) and constructs V8-style frame strings from fileName/lineNumber/columnNumber.
+
+Collected frames are appended to the event's `sourceStack`, giving the renderer both the runtime call stack and the React component tree.
 
 ### Event shape
 
@@ -194,6 +204,7 @@ A `TraceData` looks like:
 |---------|------|---------|---------|
 | `target:load-url` | `url` | `{ success }` | Create target view and load URL |
 | `target:unload` | — | `{ success }` | Destroy target view, clear traces |
+| `target:set-split` | `ratio` (0.2–0.8) | `{ success }` | Adjust target/renderer split ratio |
 | `trace:get-all` | — | `TraceData[]` | Fetch all stored traces |
 | `trace:get` | `id` | `TraceData \| null` | Fetch single trace |
 | `trace:clear` | — | `{ success }` | Clear all traces |
@@ -275,23 +286,35 @@ When an event references a file (via its stack trace), the renderer calls `windo
 
 **Live mode** (no event focused) — shows real-time hit accumulation:
 - As events arrive, their stack frames are parsed and hits accumulate per file/line
+- `useSourceHitMap` provides `currentTraceHits` (most recent trace with source hits)
 - File tabs show all files referenced in the current trace
-- Lines are highlighted based on hit data
+- Lines highlighted in **cyan** tones based on hit data
 - Auto-scrolls to the latest hit
 
 **Focus mode** (event selected from timeline) — shows a specific event's call stack:
-- Call stack panel lists all user frames from the selected event
-- Clicking a frame jumps to that file and line
-- Highlights come from all events in the focused trace
+- `computeTraceHighlights()` aggregates all events in the focused trace, marking `isCurrentEvent` and `isLatest` flags
+- Call stack panel lists all user frames from the selected event (clickable to jump)
+- `useSourceHitMap` provides `allTraceHits` map for per-trace lookups
+- Lines highlighted in **amber** tones to visually distinguish from live mode
 
 ### Three-tier line highlighting
 
-Both modes use a 3-tier color system to show hit priority:
+Each mode uses its own color scheme with 3 tiers of intensity:
+
+**Live mode (cyan):**
 
 | Tier | CSS class | Color | Meaning |
 |------|-----------|-------|---------|
-| 1 (deepest) | `hit-latest` | cyan 35% | Latest event's primary frame (live) or current frame (focus) |
+| 1 (deepest) | `hit-latest` | cyan 35% | Latest event's primary frame |
 | 2 (medium) | `hit-current-event` | cyan 18% | Other frames in the current event |
+| 3 (dim) | `hit-trace` | cyan 8% | Lines hit by other events in the trace |
+
+**Focus mode (amber):**
+
+| Tier | CSS class | Color | Meaning |
+|------|-----------|-------|---------|
+| 1 (deepest) | `hit-nav-latest` | amber 22% | Current frame being inspected |
+| 2 (medium) | `hit-nav-current` | amber 12% | Other frames in the focused event |
 | 3 (dim) | `hit-trace` | cyan 8% | Lines hit by other events in the trace |
 
 Each tier adds a left border and inset box-shadow for visual depth.

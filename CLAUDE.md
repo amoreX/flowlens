@@ -35,7 +35,7 @@ Injected into every loaded page. Monkey-patches:
 - **console.\*** (log, warn, error, info, debug)
 - **window.onerror** + **unhandledrejection**
 
-Every event captures `new Error().stack` for source mapping. The IIFE also extracts React fiber component info via `__reactFiber$` when available.
+Every event captures `new Error().stack` for source mapping. The IIFE also walks the React fiber tree (`__reactFiber$`) to extract component source locations — **React 19 primary path** uses `fiber._debugStack` (V8 error stack from element creation), **React 18 fallback** uses `fiber._debugSource` (Babel transform annotations). Collected frames are deduplicated and appended to the event's sourceStack.
 
 ### Trace Correlation Engine (trace-correlation-engine.ts)
 
@@ -81,7 +81,7 @@ All dividers are draggable. Console is collapsible.
 
 - **TracePage** — layout orchestrator, owns selection/focus/resize state
 - **Timeline → TraceGroup → TimelineEvent** — trace list with collapse/expand
-- **SourceCodePanel** — dual-mode: **live mode** (per-trace hit accumulation) and **focus mode** (selected event's full call stack). 3-tier line highlighting: latest frame (deep cyan), current event frames (medium), other trace hits (dim)
+- **SourceCodePanel** — dual-mode: **live mode** (per-trace hit accumulation, cyan highlights) and **focus mode** (selected event's full call stack, amber highlights via `.hit-nav-*` classes). Each mode uses 3-tier line highlighting for visual depth
 - **FlowNavigator** — ← Event N/M → bar for stepping through events in a trace
 - **ConsolePanel** — filterable by level (log/warn/error/info/debug), 2000 entry cap
 - **EventDetailPanel** — slide-in overlay with JSON event data + source context
@@ -89,7 +89,7 @@ All dividers are draggable. Console is collapsible.
 ### Core Hooks
 
 - **useTraceEvents** — subscribes to `onTraceEvent`, accumulates events into `TraceData[]`
-- **useSourceHitMap** — parses `sourceStack` via `parseAllUserFrames()`, tracks per-file/line hit counts, auto-fetches source files, provides hit data + source cache
+- **useSourceHitMap** — parses `sourceStack` via `parseAllUserFrames()`, tracks per-file/line hit counts per trace (`currentTraceHits` for live mode, `allTraceHits` map for focus mode lookups), auto-fetches source files, provides hit data + source cache
 - **useConsoleEntries** — extracts console/error events, filters by level, caps at 2000
 
 ### Stack Parsing (utils/stack-parser.ts)

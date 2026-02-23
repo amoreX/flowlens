@@ -39,74 +39,76 @@ function getInstrumentationScript(): string {
     });
   }
 
-  // Normalize filesystem paths to dev server URLs
-  function normalizePath(fileName) {
-    if (fileName.indexOf('://') !== -1) return fileName;
-    var srcIdx = fileName.indexOf('/src/');
-    if (srcIdx >= 0) return location.origin + fileName.slice(srcIdx);
-    if (fileName.charAt(0) === '/') return location.origin + fileName;
-    return location.origin + '/' + fileName;
-  }
-
-  // Extract React component + JSX element source info from fiber tree
+  // Extract React source info from fiber tree using _debugStack (React 19)
+  // or _debugSource (React 18) as fallback
   function getReactComponentStack(element) {
     if (!element) return '';
     try {
-      var frames = [];
-      var seen = {};
-
-      function addFrame(fileName, lineNumber, columnNumber, name) {
-        fileName = normalizePath(fileName);
-        var key = fileName + ':' + lineNumber;
-        if (seen[key]) return;
-        seen[key] = true;
-        frames.push('    at ' + name + ' (' + fileName + ':' + lineNumber + ':' + (columnNumber || 1) + ')');
-      }
-
-      // 1. Check __reactProps$ for __source (JSX source transform on native elements)
-      var keys = Object.keys(element);
       var fiberKey = null;
+      var keys = Object.keys(element);
       for (var i = 0; i < keys.length; i++) {
-        if (keys[i].indexOf('__reactProps$') === 0) {
-          var props = element[keys[i]];
-          if (props && props.__source) {
-            var tagName = element.tagName ? element.tagName.toLowerCase() : 'element';
-            addFrame(props.__source.fileName, props.__source.lineNumber, props.__source.columnNumber, '<' + tagName + '>');
-          }
-        }
         if (keys[i].indexOf('__reactFiber$') === 0) {
           fiberKey = keys[i];
+          break;
         }
       }
+      if (!fiberKey) return '';
 
-      // 2. Walk fiber tree for _debugSource and memoizedProps.__source
-      if (fiberKey) {
-        var f = element[fiberKey];
-        while (f && frames.length < 12) {
-          // Check _debugSource (React dev mode)
-          if (f._debugSource) {
-            var name = 'Component';
-            if (f.type) {
-              if (typeof f.type === 'string') name = '<' + f.type + '>';
-              else if (f.type.displayName || f.type.name) name = f.type.displayName || f.type.name;
+      var collectedStacks = [];
+      var seen = {};
+      var f = element[fiberKey];
+      var count = 0;
+
+      while (f && count < 15) {
+        count++;
+
+        // React 19: _debugStack is an Error object whose .stack contains
+        // the V8 call stack from where the JSX element was created.
+        // The user source line (e.g. App.tsx:224) is in that stack.
+        if (f._debugStack && f._debugStack.stack) {
+          var stackStr = f._debugStack.stack;
+          var stackLines = stackStr.split('\\n');
+          for (var j = 0; j < stackLines.length; j++) {
+            var line = stackLines[j];
+            // Skip non-frame lines and React/framework internals
+            if (line.indexOf('    at ') !== 0) continue;
+            if (line.indexOf('node_modules') >= 0) continue;
+            if (line.indexOf('.vite/deps') >= 0) continue;
+            if (line.indexOf('__flowlens') >= 0) continue;
+            if (line.indexOf('react-stack-top-frame') >= 0) continue;
+            // Deduplicate
+            if (!seen[line]) {
+              seen[line] = true;
+              collectedStacks.push(line);
             }
-            addFrame(f._debugSource.fileName, f._debugSource.lineNumber, f._debugSource.columnNumber, name);
           }
-          // Check memoizedProps.__source as fallback (host elements in some React versions)
-          else if (f.memoizedProps && f.memoizedProps.__source) {
-            var src = f.memoizedProps.__source;
-            var pName = 'element';
-            if (f.type) {
-              if (typeof f.type === 'string') pName = '<' + f.type + '>';
-              else if (f.type.displayName || f.type.name) pName = f.type.displayName || f.type.name;
-            }
-            addFrame(src.fileName, src.lineNumber, src.columnNumber, pName);
-          }
-          f = f.return;
         }
+
+        // React 18 fallback: _debugSource has fileName/lineNumber directly
+        if (f._debugSource) {
+          var fileName = f._debugSource.fileName;
+          if (fileName.indexOf('://') === -1) {
+            var srcIdx = fileName.indexOf('/src/');
+            if (srcIdx >= 0) fileName = location.origin + fileName.slice(srcIdx);
+            else if (fileName.charAt(0) === '/') fileName = location.origin + fileName;
+            else fileName = location.origin + '/' + fileName;
+          }
+          var name = 'Component';
+          if (f.type) {
+            if (typeof f.type === 'string') name = '<' + f.type + '>';
+            else if (f.type.displayName || f.type.name) name = f.type.displayName || f.type.name;
+          }
+          var frame = '    at ' + name + ' (' + fileName + ':' + f._debugSource.lineNumber + ':' + (f._debugSource.columnNumber || 1) + ')';
+          if (!seen[frame]) {
+            seen[frame] = true;
+            collectedStacks.push(frame);
+          }
+        }
+
+        f = f.return;
       }
 
-      return frames.join('\\n');
+      return collectedStacks.join('\\n');
     } catch(e2) {
       return '';
     }
