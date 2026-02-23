@@ -1,0 +1,95 @@
+@import './tokens.css';
+
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--font-mono);
+  font-size: var(--text-base);
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.5;
+}
+
+/* Electron drag region for custom title bar */
+.drag-region {
+  -webkit-app-region: drag;
+  height: 32px;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 9999;
+}
+
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* App layout */
+.flowlens-app {
+  height: 100%;
+  width: 100%;
+  position: relative;
+}
+
+/* Onboarding: full width */
+.flowlens-app.mode-onboarding {
+  width: 100%;
+  margin-left: 0;
+}
+
+/* Trace mode: right 45% (target view takes left 55%) */
+.flowlens-app.mode-trace {
+  width: 45%;
+  margin-left: 55%;
+  height: 100%;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-medium);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-tertiary);
+}
+
+/* Selection */
+::selection {
+  background: var(--cyan-glow-strong);
+  color: var(--text-primary);
+}
+
+/* Utility */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}

@@ -1,0 +1,29 @@
+import { ipcMain } from 'electron'
+import { TraceCorrelationEngine } from './trace-correlation-engine'
+import { createTargetView, destroyTargetView } from './target-view'
+
+export function registerIpcHandlers(traceEngine: TraceCorrelationEngine): void {
+  ipcMain.handle('target:load-url', (_event, url: string) => {
+    createTargetView(url, traceEngine)
+    return { success: true }
+  })
+
+  ipcMain.handle('target:unload', () => {
+    destroyTargetView()
+    traceEngine.clear()
+    return { success: true }
+  })
+
+  ipcMain.handle('trace:get-all', () => {
+    return traceEngine.getAllTraces()
+  })
+
+  ipcMain.handle('trace:get', (_event, id: string) => {
+    return traceEngine.getTrace(id) || null
+  })
+
+  ipcMain.handle('trace:clear', () => {
+    traceEngine.clear()
+    return { success: true }
+  })
+}

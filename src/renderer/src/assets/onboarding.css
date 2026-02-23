@@ -1,0 +1,189 @@
+.onboarding {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+/* Animated grid backdrop */
+.onboarding-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(0, 229, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 229, 255, 0.04) 1px, transparent 1px);
+  background-size: 60px 60px;
+  animation: gridPulse 8s ease-in-out infinite;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 50%, black, transparent);
+}
+
+@keyframes gridPulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+/* Radial gradient light sources */
+.onboarding-glow {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 40% 50% at 30% 40%, rgba(0, 229, 255, 0.06), transparent),
+    radial-gradient(ellipse 35% 45% at 70% 60%, rgba(255, 64, 129, 0.04), transparent),
+    radial-gradient(ellipse 50% 50% at 50% 50%, rgba(179, 136, 255, 0.03), transparent);
+  pointer-events: none;
+}
+
+/* Content container */
+.onboarding-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-8);
+  padding: var(--space-8);
+  max-width: 560px;
+}
+
+/* Logo / Title */
+.onboarding-title {
+  font-family: var(--font-display);
+  font-size: var(--text-hero);
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  text-align: center;
+  animation: fadeUp 600ms ease both;
+}
+
+.onboarding-title span {
+  background: linear-gradient(135deg, var(--cyan), var(--purple));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.onboarding-subtitle {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  text-align: center;
+  max-width: 420px;
+  line-height: 1.7;
+  animation: fadeUp 600ms 100ms ease both;
+}
+
+/* URL Input */
+.url-input-wrapper {
+  width: 100%;
+  animation: fadeUp 600ms 200ms ease both;
+}
+
+.url-input-group {
+  display: flex;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.url-input {
+  flex: 1;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  font-family: var(--font-mono);
+  font-size: var(--text-base);
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color var(--transition-base), box-shadow var(--transition-base);
+}
+
+.url-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.url-input:focus {
+  border-color: var(--cyan);
+  box-shadow: var(--shadow-glow-cyan);
+}
+
+.url-launch-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: linear-gradient(135deg, var(--cyan-dim), var(--cyan));
+  color: var(--text-inverse);
+  border: none;
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-6);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform var(--transition-fast), box-shadow var(--transition-base);
+  white-space: nowrap;
+}
+
+.url-launch-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-glow-cyan);
+}
+
+.url-launch-btn:active {
+  transform: translateY(0);
+}
+
+.url-launch-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.url-input-error {
+  font-size: var(--text-xs);
+  color: var(--magenta);
+  margin-top: var(--space-2);
+  padding-left: var(--space-1);
+}
+
+/* Hint badges */
+.onboarding-hints {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  justify-content: center;
+  animation: fadeUp 600ms 300ms ease both;
+}
+
+.hint-badge {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  padding: var(--space-1) var(--space-3);
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.hint-badge:hover {
+  color: var(--text-secondary);
+  border-color: var(--border-medium);
+  background: var(--bg-elevated);
+}
+
+/* Animations */
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
