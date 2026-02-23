@@ -4,11 +4,12 @@ import { TraceGroup } from './TraceGroup'
 interface TimelineProps {
   traces: TraceData[]
   selectedEventId: string | null
+  focusedEventId: string | null
   onSelectEvent: (event: CapturedEvent) => void
   onClear: () => void
 }
 
-export function Timeline({ traces, selectedEventId, onSelectEvent, onClear }: TimelineProps) {
+export function Timeline({ traces, selectedEventId, focusedEventId, onSelectEvent, onClear }: TimelineProps) {
   return (
     <div className="timeline">
       <div className="timeline-header">
@@ -33,6 +34,7 @@ export function Timeline({ traces, selectedEventId, onSelectEvent, onClear }: Ti
             key={trace.id}
             trace={trace}
             selectedEventId={selectedEventId}
+            focusedEventId={focusedEventId}
             onSelectEvent={onSelectEvent}
           />
         ))

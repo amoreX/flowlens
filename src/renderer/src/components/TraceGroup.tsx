@@ -6,6 +6,7 @@ import { EventBadge } from './EventBadge'
 interface TraceGroupProps {
   trace: TraceData
   selectedEventId: string | null
+  focusedEventId: string | null
   onSelectEvent: (event: CapturedEvent) => void
 }
 
@@ -26,8 +27,14 @@ function getTraceLabel(trace: TraceData): string {
   return `${root.type}`
 }
 
-export function TraceGroup({ trace, selectedEventId, onSelectEvent }: TraceGroupProps) {
+export function TraceGroup({ trace, selectedEventId, focusedEventId, onSelectEvent }: TraceGroupProps) {
+  // Auto-expand if this trace contains the focused event
+  const containsFocused = focusedEventId ? trace.events.some((e) => e.id === focusedEventId) : false
   const [expanded, setExpanded] = useState(true)
+  // Force expand when focused event enters this trace
+  if (containsFocused && !expanded) {
+    setExpanded(true)
+  }
   const duration = trace.endTime - trace.startTime
 
   return (
@@ -49,6 +56,7 @@ export function TraceGroup({ trace, selectedEventId, onSelectEvent }: TraceGroup
               event={event}
               traceStartTime={trace.startTime}
               selected={event.id === selectedEventId}
+              focused={event.id === focusedEventId}
               onClick={() => onSelectEvent(event)}
             />
           ))}

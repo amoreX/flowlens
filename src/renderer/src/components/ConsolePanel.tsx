@@ -67,7 +67,6 @@ export function ConsolePanel({ entries, filter, onFilterChange, onClear }: Conso
 
       {entries.length === 0 ? (
         <div className="console-empty">
-          <div className="console-empty-icon">&gt;_</div>
           <div className="console-empty-text">
             Console output will appear here as the target app runs
           </div>

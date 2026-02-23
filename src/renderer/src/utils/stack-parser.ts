@@ -29,6 +29,31 @@ export function parseUserSourceLocation(stack: string | undefined): SourceLocati
   return null
 }
 
+export function parseAllUserFrames(stack: string | undefined): SourceLocation[] {
+  if (!stack) return []
+
+  const frames: SourceLocation[] = []
+  const lines = stack.split('\n')
+
+  for (const line of lines) {
+    const match = line.match(CHROME_FRAME_RE)
+    if (!match) continue
+
+    const [, functionName, filePath, lineStr, colStr] = match
+
+    if (isInstrumentationFrame(filePath, functionName)) continue
+
+    frames.push({
+      filePath,
+      line: parseInt(lineStr, 10),
+      column: parseInt(colStr, 10),
+      functionName: functionName || undefined
+    })
+  }
+
+  return frames
+}
+
 function isInstrumentationFrame(filePath: string, functionName?: string): boolean {
   // The IIFE is tagged with sourceURL=__flowlens_instrumentation__
   if (filePath.includes('__flowlens_instrumentation__')) return true

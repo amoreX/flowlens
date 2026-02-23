@@ -13,6 +13,7 @@ interface TimelineEventProps {
   event: CapturedEvent
   traceStartTime: number
   selected: boolean
+  focused: boolean
   onClick: () => void
 }
 
@@ -70,11 +71,12 @@ function getSummary(event: CapturedEvent): string {
   }
 }
 
-export function TimelineEvent({ event, traceStartTime, selected, onClick }: TimelineEventProps) {
+export function TimelineEvent({ event, traceStartTime, selected, focused, onClick }: TimelineEventProps) {
   const offset = event.timestamp - traceStartTime
+  const cls = `timeline-event${selected ? ' selected' : ''}${focused ? ' focused' : ''}`
 
   return (
-    <div className={`timeline-event${selected ? ' selected' : ''}`} onClick={onClick}>
+    <div className={cls} onClick={onClick}>
       <span className="event-offset">{formatOffset(offset)}</span>
       <span className={`event-type-badge ${event.type}`}>{badgeLabel(event.type)}</span>
       <span className="event-summary" title={getSummary(event)}>
