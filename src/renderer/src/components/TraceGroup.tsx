@@ -9,6 +9,7 @@ interface TraceGroupProps {
   focusedEventId: string | null
   onSelectEvent: (event: CapturedEvent) => void
   onFocusTrace: (traceId: string) => void
+  onOpenTraceDetails: (traceId: string) => void
 }
 
 function formatTime(ts: number): string {
@@ -28,7 +29,7 @@ function getTraceLabel(trace: TraceData): string {
   return `${root.type}`
 }
 
-export function TraceGroup({ trace, selectedEventId, focusedEventId, onSelectEvent, onFocusTrace }: TraceGroupProps) {
+export function TraceGroup({ trace, selectedEventId, focusedEventId, onSelectEvent, onFocusTrace, onOpenTraceDetails }: TraceGroupProps) {
   // Auto-expand if this trace contains the focused event
   const containsFocused = focusedEventId ? trace.events.some((e) => e.id === focusedEventId) : false
   const [expanded, setExpanded] = useState(true)
@@ -55,6 +56,16 @@ export function TraceGroup({ trace, selectedEventId, focusedEventId, onSelectEve
             }}
           >
             {'</>'}
+          </button>
+          <button
+            className="trace-details-btn"
+            title="Open event details"
+            onClick={(e) => {
+              e.stopPropagation()
+              onOpenTraceDetails(trace.id)
+            }}
+          >
+            {'{ }'}
           </button>
         </div>
       </div>

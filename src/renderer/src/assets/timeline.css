@@ -309,8 +309,9 @@
   font-family: var(--font-mono);
 }
 
-/* Focus source button */
-.trace-focus-btn {
+/* Trace action buttons (shared base) */
+.trace-focus-btn,
+.trace-details-btn {
   font-family: var(--font-mono);
   font-size: 0.6rem;
   font-weight: 700;
@@ -325,7 +326,8 @@
   opacity: 0;
 }
 
-.trace-group-header:hover .trace-focus-btn {
+.trace-group-header:hover .trace-focus-btn,
+.trace-group-header:hover .trace-details-btn {
   opacity: 1;
 }
 
@@ -333,6 +335,12 @@
   color: var(--cyan);
   border-color: var(--cyan);
   background: var(--cyan-glow);
+}
+
+.trace-details-btn:hover {
+  color: var(--amber);
+  border-color: var(--amber);
+  background: var(--amber-glow);
 }
 
 /* Focused trace group */

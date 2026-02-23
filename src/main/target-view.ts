@@ -22,9 +22,12 @@ function getInstrumentationScript(): string {
 
   let currentTraceId = uid();
 
-  function send(type, data, traceId) {
+  function send(type, data, traceId, extraStack) {
     var stack = null;
     try { stack = new Error().stack || null; } catch(e) {}
+    if (extraStack) {
+      stack = (stack || '') + '\\n' + extraStack;
+    }
     bridge.sendEvent({
       id: uid(),
       traceId: traceId || currentTraceId,
@@ -36,6 +39,59 @@ function getInstrumentationScript(): string {
     });
   }
 
+  // Extract React component source info from fiber tree (_debugSource in dev mode)
+  function getReactComponentStack(element) {
+    if (!element) return '';
+    try {
+      var fiber = null;
+      var keys = Object.keys(element);
+      for (var i = 0; i < keys.length; i++) {
+        if (keys[i].indexOf('__reactFiber$') === 0) {
+          fiber = element[keys[i]];
+          break;
+        }
+      }
+      if (!fiber) return '';
+
+      var frames = [];
+      var seen = {};
+      var f = fiber;
+      while (f && frames.length < 10) {
+        if (f._debugSource) {
+          var key = f._debugSource.fileName + ':' + f._debugSource.lineNumber;
+          if (!seen[key]) {
+            seen[key] = true;
+            var fileName = f._debugSource.fileName;
+            // Convert filesystem paths to dev server URLs
+            if (fileName.indexOf('://') === -1) {
+              var srcIdx = fileName.indexOf('/src/');
+              if (srcIdx >= 0) {
+                fileName = location.origin + fileName.slice(srcIdx);
+              } else if (fileName.charAt(0) === '/') {
+                fileName = location.origin + fileName;
+              } else {
+                fileName = location.origin + '/' + fileName;
+              }
+            }
+            var name = 'Component';
+            if (f.type) {
+              if (typeof f.type === 'string') {
+                name = f.type;
+              } else if (f.type.displayName || f.type.name) {
+                name = f.type.displayName || f.type.name;
+              }
+            }
+            frames.push('    at ' + name + ' (' + fileName + ':' + f._debugSource.lineNumber + ':' + (f._debugSource.columnNumber || 1) + ')');
+          }
+        }
+        f = f.return;
+      }
+      return frames.join('\\n');
+    } catch(e2) {
+      return '';
+    }
+  }
+
   // DOM events
   var domEvents = ['click', 'input', 'submit', 'change', 'focus', 'blur'];
   domEvents.forEach(function(evtType) {
@@ -44,6 +100,7 @@ function getInstrumentationScript(): string {
         currentTraceId = uid();
       }
       var el = e.target;
+      var componentStack = getReactComponentStack(el);
       send('dom', {
         eventType: evtType,
         target: el ? (el.tagName || '') + (el.id ? '#' + el.id : '') + (el.className ? '.' + String(el.className).split(' ').join('.') : '') : '',
@@ -52,7 +109,7 @@ function getInstrumentationScript(): string {
         className: el ? String(el.className || '') : '',
         textContent: el && el.textContent ? el.textContent.slice(0, 100) : undefined,
         value: el && el.value !== undefined ? String(el.value).slice(0, 100) : undefined
-      });
+      }, null, componentStack);
     }, true);
   });
 

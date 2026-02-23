@@ -143,7 +143,13 @@ export function TracePage({ targetUrl, onStop }: TracePageProps) {
     }
 
     setFocusedEventIndex(bestIndex)
-    setSelectedEvent(trace.events[bestIndex])
+    // Don't open event details — just focus the source
+  }, [traces])
+
+  const handleOpenTraceDetails = useCallback((traceId: string) => {
+    const trace = traces.find((t) => t.id === traceId)
+    if (!trace || trace.events.length === 0) return
+    setSelectedEvent(trace.events[0])
   }, [traces])
 
   const handleCloseFlow = useCallback(() => {
@@ -195,6 +201,7 @@ export function TracePage({ targetUrl, onStop }: TracePageProps) {
             focusedEventId={focusedEvent?.id ?? null}
             onSelectEvent={handleSelectEvent}
             onFocusTrace={handleFocusTrace}
+            onOpenTraceDetails={handleOpenTraceDetails}
             onClear={clearTraces}
           />
         </div>
