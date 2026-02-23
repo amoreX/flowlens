@@ -20,6 +20,9 @@ const api = {
   fetchSource: (fileUrl: string): Promise<SourceResponse> => {
     return ipcRenderer.invoke('source:fetch', fileUrl)
   },
+  setSplitRatio: (ratio: number): Promise<{ success: boolean }> => {
+    return ipcRenderer.invoke('target:set-split', ratio)
+  },
   onTraceEvent: (callback: (event: CapturedEvent) => void): (() => void) => {
     const handler = (_event: Electron.IpcRendererEvent, data: CapturedEvent): void => {
       callback(data)

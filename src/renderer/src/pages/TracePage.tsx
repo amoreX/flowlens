@@ -8,6 +8,7 @@ import { SourceCodePanel } from '../components/SourceCodePanel'
 import { ConsolePanel } from '../components/ConsolePanel'
 import { FlowNavigator } from '../components/FlowNavigator'
 import { EventDetailPanel } from '../components/EventDetailPanel'
+import { parseAllUserFrames } from '../utils/stack-parser'
 import type { CapturedEvent } from '../types/events'
 import '../assets/timeline.css'
 
@@ -131,8 +132,18 @@ export function TracePage({ targetUrl, onStop }: TracePageProps) {
     const trace = traces.find((t) => t.id === traceId)
     if (!trace || trace.events.length === 0) return
     setFocusedTraceId(traceId)
-    setFocusedEventIndex(0)
-    setSelectedEvent(trace.events[0])
+
+    // Pick the first event that has user source frames (skip DOM events with none)
+    let bestIndex = 0
+    for (let i = 0; i < trace.events.length; i++) {
+      if (parseAllUserFrames(trace.events[i].sourceStack).length > 0) {
+        bestIndex = i
+        break
+      }
+    }
+
+    setFocusedEventIndex(bestIndex)
+    setSelectedEvent(trace.events[bestIndex])
   }, [traces])
 
   const handleCloseFlow = useCallback(() => {

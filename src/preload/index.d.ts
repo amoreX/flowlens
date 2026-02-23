@@ -7,6 +7,7 @@ interface FlowLensAPI {
   getTrace: (id: string) => Promise<TraceData | null>
   clearTraces: () => Promise<{ success: boolean }>
   fetchSource: (fileUrl: string) => Promise<SourceResponse>
+  setSplitRatio: (ratio: number) => Promise<{ success: boolean }>
   onTraceEvent: (callback: (event: CapturedEvent) => void) => () => void
   onTargetLoaded: (callback: (url: string) => void) => () => void
 }

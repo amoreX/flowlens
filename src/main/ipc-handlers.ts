@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
 import { TraceCorrelationEngine } from './trace-correlation-engine'
-import { createTargetView, destroyTargetView } from './target-view'
+import { createTargetView, destroyTargetView, setTargetSplitRatio } from './target-view'
 import { fetchSourceFile, clearSourceCache } from './source-fetcher'
 
 export function registerIpcHandlers(traceEngine: TraceCorrelationEngine): void {
@@ -31,5 +31,10 @@ export function registerIpcHandlers(traceEngine: TraceCorrelationEngine): void {
 
   ipcMain.handle('source:fetch', (_event, fileUrl: string) => {
     return fetchSourceFile(fileUrl)
+  })
+
+  ipcMain.handle('target:set-split', (_event, ratio: number) => {
+    setTargetSplitRatio(ratio)
+    return { success: true }
   })
 }

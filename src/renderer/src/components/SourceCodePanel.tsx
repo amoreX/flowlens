@@ -12,7 +12,13 @@ interface SourceCodePanelProps {
 }
 
 export function SourceCodePanel({ hitMap, focusedEvent, focusedTraceEvents }: SourceCodePanelProps) {
-  if (focusedEvent && focusedTraceEvents) {
+  // Check if the focused trace has any events with source frames
+  const focusedHasSource = useMemo(() => {
+    if (!focusedTraceEvents) return false
+    return focusedTraceEvents.some((ev) => parseAllUserFrames(ev.sourceStack).length > 0)
+  }, [focusedTraceEvents])
+
+  if (focusedEvent && focusedTraceEvents && focusedHasSource) {
     return (
       <FocusedSourceView
         event={focusedEvent}
@@ -21,6 +27,7 @@ export function SourceCodePanel({ hitMap, focusedEvent, focusedTraceEvents }: So
       />
     )
   }
+  // Fall back to live mode (shows current hit-map even when focused trace has no source)
   return <LiveSourceView hitMap={hitMap} />
 }
 

@@ -5,6 +5,7 @@ import { TraceCorrelationEngine } from './trace-correlation-engine'
 import { clearSourceCache } from './source-fetcher'
 
 let targetView: WebContentsView | null = null
+let splitRatio = 0.55
 
 function getInstrumentationScript(): string {
   return `
@@ -239,8 +240,13 @@ function updateTargetBounds(): void {
   const mainWindow = getMainWindow()
   if (!mainWindow || !targetView) return
   const { width, height } = mainWindow.getContentBounds()
-  const targetWidth = Math.floor(width * 0.55)
+  const targetWidth = Math.floor(width * splitRatio)
   targetView.setBounds({ x: 0, y: 0, width: targetWidth, height })
+}
+
+export function setTargetSplitRatio(ratio: number): void {
+  splitRatio = Math.max(0.2, Math.min(0.8, ratio))
+  updateTargetBounds()
 }
 
 export function destroyTargetView(): void {

@@ -50,11 +50,27 @@ body {
   margin-left: 0;
 }
 
-/* Trace mode: right 45% (target view takes left 55%) */
+/* Trace mode: width and margin set dynamically via inline style */
 .flowlens-app.mode-trace {
-  width: 45%;
-  margin-left: 55%;
   height: 100%;
+}
+
+/* Drag handle between target view and sidebar */
+.split-resize-handle {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  cursor: col-resize;
+  background: var(--border-subtle);
+  z-index: 100;
+  transition: background var(--transition-fast);
+}
+
+.split-resize-handle:hover,
+.split-resize-handle.dragging {
+  background: var(--cyan-dim);
 }
 
 /* Scrollbar styling */
