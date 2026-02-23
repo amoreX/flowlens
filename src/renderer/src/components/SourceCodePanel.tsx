@@ -376,9 +376,9 @@ function FocusedSourceContent({ content, focusLine, traceLines, eventId, codeAre
 
         let hitClass = ''
         if (isFocus) {
-          hitClass = ' hit-latest'
+          hitClass = ' hit-nav-latest'
         } else if (traceHit?.isCurrentEvent) {
-          hitClass = ' hit-current-event'
+          hitClass = ' hit-nav-current'
         } else if (traceHit) {
           hitClass = ' hit-trace'
         }

@@ -114,19 +114,19 @@ export function TracePage({ targetUrl, onStop }: TracePageProps) {
     if (focusedEventIndex > 0) {
       const newIdx = focusedEventIndex - 1
       setFocusedEventIndex(newIdx)
-      if (focusedTrace) {
+      if (focusedTrace && selectedEvent) {
         setSelectedEvent(focusedTrace.events[newIdx])
       }
     }
-  }, [focusedEventIndex, focusedTrace])
+  }, [focusedEventIndex, focusedTrace, selectedEvent])
 
   const handleNextEvent = useCallback(() => {
     if (focusedTrace && focusedEventIndex < focusedTrace.events.length - 1) {
       const newIdx = focusedEventIndex + 1
       setFocusedEventIndex(newIdx)
-      setSelectedEvent(focusedTrace.events[newIdx])
+      if (selectedEvent) setSelectedEvent(focusedTrace.events[newIdx])
     }
-  }, [focusedEventIndex, focusedTrace])
+  }, [focusedEventIndex, focusedTrace, selectedEvent])
 
   const handleFocusTrace = useCallback((traceId: string) => {
     const trace = traces.find((t) => t.id === traceId)
@@ -151,6 +151,37 @@ export function TracePage({ targetUrl, onStop }: TracePageProps) {
     setFocusedEventIndex(0)
     setSelectedEvent(null)
   }, [])
+
+  // Keyboard arrow navigation when a trace is focused
+  useEffect(() => {
+    if (!focusedTrace) return
+
+    const onKeyDown = (e: KeyboardEvent): void => {
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        e.preventDefault()
+        if (focusedEventIndex > 0) {
+          const newIdx = focusedEventIndex - 1
+          setFocusedEventIndex(newIdx)
+          // Only update detail panel if it's already open
+          if (selectedEvent) setSelectedEvent(focusedTrace.events[newIdx])
+        }
+      } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+        e.preventDefault()
+        if (focusedEventIndex < focusedTrace.events.length - 1) {
+          const newIdx = focusedEventIndex + 1
+          setFocusedEventIndex(newIdx)
+          if (selectedEvent) setSelectedEvent(focusedTrace.events[newIdx])
+        }
+      } else if (e.key === 'Escape') {
+        setFocusedTraceId(null)
+        setFocusedEventIndex(0)
+        setSelectedEvent(null)
+      }
+    }
+
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [focusedTrace, focusedEventIndex, selectedEvent])
 
   return (
     <div className="trace-page" ref={tracePageRef}>
