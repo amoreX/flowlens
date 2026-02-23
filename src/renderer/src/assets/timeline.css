@@ -66,6 +66,13 @@
   border-color: var(--magenta);
 }
 
+/* Tab content area */
+.tab-content {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
 /* Timeline */
 .timeline {
   flex: 1;

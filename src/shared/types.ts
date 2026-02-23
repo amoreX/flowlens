@@ -79,6 +79,7 @@ export interface CapturedEvent {
   timestamp: number
   url?: string
   data: EventData
+  sourceStack?: string
 }
 
 export interface TraceData {
@@ -89,3 +90,24 @@ export interface TraceData {
   url: string
   rootEvent: CapturedEvent
 }
+
+export interface SourceLocation {
+  filePath: string
+  line: number
+  column: number
+  functionName?: string
+}
+
+export interface SourceFetchResult {
+  content: string
+  filePath: string
+  error?: undefined
+}
+
+export interface SourceFetchError {
+  content?: undefined
+  filePath: string
+  error: string
+}
+
+export type SourceResponse = SourceFetchResult | SourceFetchError

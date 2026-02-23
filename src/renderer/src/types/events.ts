@@ -9,5 +9,9 @@ export type {
   ConsoleEventData,
   ErrorEventData,
   NavigationEventData,
-  EventData
+  EventData,
+  SourceLocation,
+  SourceResponse,
+  SourceFetchResult,
+  SourceFetchError
 } from '../../../shared/types'

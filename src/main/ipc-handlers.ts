@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron'
 import { TraceCorrelationEngine } from './trace-correlation-engine'
 import { createTargetView, destroyTargetView } from './target-view'
+import { fetchSourceFile, clearSourceCache } from './source-fetcher'
 
 export function registerIpcHandlers(traceEngine: TraceCorrelationEngine): void {
   ipcMain.handle('target:load-url', (_event, url: string) => {
@@ -11,6 +12,7 @@ export function registerIpcHandlers(traceEngine: TraceCorrelationEngine): void {
   ipcMain.handle('target:unload', () => {
     destroyTargetView()
     traceEngine.clear()
+    clearSourceCache()
     return { success: true }
   })
 
@@ -25,5 +27,9 @@ export function registerIpcHandlers(traceEngine: TraceCorrelationEngine): void {
   ipcMain.handle('trace:clear', () => {
     traceEngine.clear()
     return { success: true }
+  })
+
+  ipcMain.handle('source:fetch', (_event, fileUrl: string) => {
+    return fetchSourceFile(fileUrl)
   })
 }

@@ -1,0 +1,124 @@
+import { useEffect, useRef } from 'react'
+import type { SourceHitMap } from '../hooks/useSourceHitMap'
+import { tokenizeLine } from '../utils/syntax'
+import '../assets/source-panel.css'
+
+interface SourceCodePanelProps {
+  hitMap: SourceHitMap
+}
+
+// Lines hit within the last 2 seconds get the "recent" glow
+const RECENT_THRESHOLD_MS = 2000
+
+export function SourceCodePanel({ hitMap }: SourceCodePanelProps) {
+  const { files, fileOrder, activeFile, setActiveFile, lastHitLine } = hitMap
+  const codeAreaRef = useRef<HTMLDivElement>(null)
+  const lastScrolledLine = useRef<number | null>(null)
+
+  const currentFile = activeFile ? files.get(activeFile) : null
+
+  // Auto-scroll to latest hit line
+  useEffect(() => {
+    if (!lastHitLine || lastHitLine === lastScrolledLine.current) return
+    lastScrolledLine.current = lastHitLine
+
+    requestAnimationFrame(() => {
+      if (!codeAreaRef.current) return
+      const el = codeAreaRef.current.querySelector(`[data-line="${lastHitLine}"]`)
+      if (el) {
+        el.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      }
+    })
+  }, [lastHitLine, activeFile])
+
+  if (fileOrder.length === 0) {
+    return (
+      <div className="source-panel">
+        <div className="source-panel-status">
+          <div className="source-panel-status-icon">{'{}'}</div>
+          <div className="source-panel-status-text">
+            Source code will appear here as you interact with the target app. Lines will light up in real-time.
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="source-panel">
+      {fileOrder.length > 0 && (
+        <div className="source-file-tabs">
+          {fileOrder.map((fp) => {
+            const fileData = files.get(fp)!
+            return (
+              <button
+                key={fp}
+                className={`source-file-tab${fp === activeFile ? ' active' : ''}`}
+                onClick={() => setActiveFile(fp)}
+                title={fp}
+              >
+                {fileData.displayPath}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      {currentFile && currentFile.loading && (
+        <div className="source-panel-loading">Loading source...</div>
+      )}
+      {currentFile && currentFile.error && (
+        <div className="source-panel-error">{currentFile.error}</div>
+      )}
+      {currentFile && currentFile.content && (
+        <SourceFileContent
+          content={currentFile.content}
+          lines={currentFile.lines}
+          codeAreaRef={codeAreaRef}
+        />
+      )}
+      {currentFile && !currentFile.loading && !currentFile.error && !currentFile.content && (
+        <div className="source-panel-loading">Waiting for source...</div>
+      )}
+    </div>
+  )
+}
+
+interface SourceFileContentProps {
+  content: string
+  lines: Map<number, { count: number; lastTimestamp: number }>
+  codeAreaRef: React.RefObject<HTMLDivElement | null>
+}
+
+function SourceFileContent({ content, lines: hitLines, codeAreaRef }: SourceFileContentProps) {
+  const allLines = content.split('\n')
+  const now = Date.now()
+
+  return (
+    <div className="source-code-area" ref={codeAreaRef}>
+      {allLines.map((lineContent, i) => {
+        const lineNum = i + 1
+        const hit = hitLines.get(lineNum)
+        const isRecent = hit && (now - hit.lastTimestamp) < RECENT_THRESHOLD_MS
+        const hitClass = hit ? (isRecent ? ' hit-recent' : ' hit-old') : ''
+
+        return (
+          <div
+            key={lineNum}
+            data-line={lineNum}
+            className={`source-panel-line${hitClass}`}
+          >
+            <span className="source-panel-line-number">{lineNum}</span>
+            <code
+              className="source-panel-line-content"
+              dangerouslySetInnerHTML={{ __html: tokenizeLine(lineContent) }}
+            />
+            {hit && hit.count > 1 && (
+              <span className="source-hit-badge">{hit.count > 99 ? '99+' : hit.count}</span>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}

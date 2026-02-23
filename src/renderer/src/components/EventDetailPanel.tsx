@@ -1,4 +1,5 @@
 import type { CapturedEvent } from '../types/events'
+import { SourceCodeViewer } from './SourceCodeViewer'
 import '../assets/detail-panel.css'
 
 interface EventDetailPanelProps {
@@ -57,6 +58,8 @@ export function EventDetailPanel({ event, onClose }: EventDetailPanelProps) {
             <div className="detail-section-title">Data</div>
             <pre className="detail-json">{JSON.stringify(event.data, null, 2)}</pre>
           </div>
+
+          <SourceCodeViewer event={event} />
         </div>
       </div>
     </div>

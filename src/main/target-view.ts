@@ -2,6 +2,7 @@ import { WebContentsView } from 'electron'
 import { join } from 'path'
 import { getMainWindow } from './window-manager'
 import { TraceCorrelationEngine } from './trace-correlation-engine'
+import { clearSourceCache } from './source-fetcher'
 
 let targetView: WebContentsView | null = null
 
@@ -21,13 +22,16 @@ function getInstrumentationScript(): string {
   let currentTraceId = uid();
 
   function send(type, data, traceId) {
+    var stack = null;
+    try { stack = new Error().stack || null; } catch(e) {}
     bridge.sendEvent({
       id: uid(),
       traceId: traceId || currentTraceId,
       type: type,
       timestamp: Date.now(),
       url: location.href,
-      data: data
+      data: data,
+      sourceStack: stack
     });
   }
 
@@ -171,6 +175,7 @@ function getInstrumentationScript(): string {
     });
   });
 })();
+//# sourceURL=__flowlens_instrumentation__
 `
 }
 
@@ -205,6 +210,7 @@ export function createTargetView(
   })
 
   targetView.webContents.on('did-finish-load', () => {
+    clearSourceCache()
     targetView?.webContents.executeJavaScript(getInstrumentationScript())
   })
 

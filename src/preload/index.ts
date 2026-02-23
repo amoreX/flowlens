@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { CapturedEvent, TraceData } from '../shared/types'
+import type { CapturedEvent, TraceData, SourceResponse } from '../shared/types'
 
 const api = {
   loadTargetUrl: (url: string): Promise<{ success: boolean }> => {
@@ -16,6 +16,9 @@ const api = {
   },
   clearTraces: (): Promise<{ success: boolean }> => {
     return ipcRenderer.invoke('trace:clear')
+  },
+  fetchSource: (fileUrl: string): Promise<SourceResponse> => {
+    return ipcRenderer.invoke('source:fetch', fileUrl)
   },
   onTraceEvent: (callback: (event: CapturedEvent) => void): (() => void) => {
     const handler = (_event: Electron.IpcRendererEvent, data: CapturedEvent): void => {
