@@ -462,6 +462,16 @@
   background: var(--green-bg);
 }
 
+.event-type-badge.backend-span {
+  color: var(--amber);
+  background: var(--amber-bg);
+}
+
+.event-type-badge.state-change {
+  color: #4fc3f7;
+  background: rgba(79, 195, 247, 0.12);
+}
+
 .event-summary {
   flex: 1;
   font-size: var(--text-xs);

@@ -1,6 +1,6 @@
 # FlowLens — Developer Guide
 
-FlowLens is an Electron desktop app that loads any web page in an embedded browser, automatically instruments it (zero code changes), and captures every UI event, network call, console log, and error into correlated execution traces displayed in a real-time timeline UI.
+FlowLens is an Electron desktop app that loads any web page in an embedded browser, automatically instruments it (zero code changes), and captures every UI event, network call, console log, error, React state change, and backend span into correlated execution traces displayed in a real-time timeline UI.
 
 ---
 
@@ -9,19 +9,20 @@ FlowLens is an Electron desktop app that loads any web page in an embedded brows
 ```
 src/
 ├── main/                              # Electron main process
-│   ├── index.ts                       # App entry — boots engine, registers IPC, creates window
+│   ├── index.ts                       # App entry — boots engine, registers IPC, starts span collector
 │   ├── window-manager.ts              # Creates the BrowserWindow (React UI lives here)
 │   ├── target-view.ts                 # WebContentsView for target site + IIFE injection
 │   ├── ipc-handlers.ts                # All IPC invoke handlers
 │   ├── trace-correlation-engine.ts    # In-memory trace store (groups events by traceId)
-│   └── source-fetcher.ts             # HTTP fetcher + LRU cache for source files
+│   ├── source-fetcher.ts             # Source resolver (disk / file:// / HTTP + inline source map extraction)
+│   └── span-collector.ts             # HTTP server on :9229 for backend span ingestion
 ├── preload/
 │   ├── index.ts                       # Renderer preload — exposes window.flowlens API
 │   ├── index.d.ts                     # Type declarations for window.flowlens
 │   └── target-preload.ts             # Target page preload — exposes bridge.sendEvent()
 ├── renderer/src/
 │   ├── main.tsx                       # React root mount
-│   ├── App.tsx                        # Top-level router: onboarding ↔ trace mode
+│   ├── App.tsx                        # Top-level router: onboarding ↔ trace mode + split-view drag handle
 │   ├── pages/
 │   │   ├── OnboardingPage.tsx         # URL input form
 │   │   └── TracePage.tsx              # Main layout — orchestrates all panels + state
@@ -42,11 +43,11 @@ src/
 │   │   ├── useSourceHitMap.ts         # Tracks per-file/line hit counts + source cache
 │   │   └── useConsoleEntries.ts       # Filters console/error events (2000 cap)
 │   ├── utils/
-│   │   ├── stack-parser.ts            # V8 stack trace parser + instrumentation filter
+│   │   ├── stack-parser.ts            # V8 stack trace parser (browser + Node.js + file://) + filter
 │   │   └── syntax.ts                  # Simple JS/TS tokenizer for syntax highlighting
 │   └── assets/                        # CSS files (tokens, components, pages)
 └── shared/
-    └── types.ts                       # CapturedEvent, TraceData, EventData unions
+    └── types.ts                       # CapturedEvent, TraceData, EventData unions (incl. BackendSpanData, StateChangeData)
 ```
 
 ---
@@ -87,7 +88,7 @@ FlowLens runs three Electron processes that communicate via IPC:
         ↓
 2. App calls window.flowlens.loadTargetUrl(url)
         ↓  IPC invoke 'target:load-url'
-3. Main process creates WebContentsView, loads URL
+3. Main process creates WebContentsView, loads URL (span collector already running on :9229)
         ↓  did-finish-load
 4. IIFE instrumentation injected via executeJavaScript()
         ↓
@@ -96,8 +97,10 @@ FlowLens runs three Electron processes that communicate via IPC:
 6. User interacts with target page (click, fetch, console.log, etc.)
         ↓
 7. IIFE captures event + new Error().stack, calls bridge.sendEvent(event)
+   ├── Fetch/XHR requests include X-FlowLens-Trace-Id header
+   └── After DOM events, setTimeout(0) detects React state changes
         ↓  IPC send 'instrumentation:event'
-8. Main process receives event
+8. Main process receives event (also receives backend spans via HTTP :9229)
    ├── traceEngine.ingestEvent(event)  →  stores in Map<traceId, TraceData>
    └── forwards to renderer via IPC 'trace:event-received'
         ↓
@@ -119,9 +122,9 @@ The instrumentation script is an inline IIFE string in `target-view.ts`, injecte
 
 | Target | Events emitted | Trace ID behavior |
 |--------|---------------|-------------------|
-| DOM events (click, input, submit, change, focus, blur) | `dom` | click/submit start a **new trace**; others use current |
-| `window.fetch` | `network-request`, `network-response`, `network-error` | Uses current trace ID |
-| `XMLHttpRequest` (open/send) | `network-request`, `network-response`, `network-error` | Uses current trace ID |
+| DOM events (click, input, submit, change, focus, blur) | `dom` + `state-change` (after re-render) | click/submit start a **new trace**; others use current |
+| `window.fetch` | `network-request`, `network-response`, `network-error` | Uses current trace ID; injects `X-FlowLens-Trace-Id` header |
+| `XMLHttpRequest` (open/send) | `network-request`, `network-response`, `network-error` | Uses current trace ID; injects `X-FlowLens-Trace-Id` header |
 | `console.*` (log, warn, error, info, debug) | `console` | Uses current trace ID |
 | `window.onerror` + `unhandledrejection` | `error` | Uses current trace ID |
 
@@ -142,17 +145,26 @@ After capturing the V8 stack, the IIFE walks the React fiber tree (via `__reactF
 
 Collected frames are appended to the event's `sourceStack`, giving the renderer both the runtime call stack and the React component tree.
 
+### React state change detection
+
+After click, submit, change, and input events, the IIFE schedules a `setTimeout(0)` callback that runs after React has re-rendered. It walks the fiber tree comparing `fiber.memoizedState` against `fiber.alternate.memoizedState` for every function component with hooks. When a useState/useReducer value has changed (detected via `Object.is`), it emits a `state-change` event with the component name, hook index, previous value, and current value.
+
+### Trace header injection
+
+All outgoing fetch and XHR requests have an `X-FlowLens-Trace-Id` header injected automatically. Backend services can read this header to correlate their spans with the frontend trace that initiated the request.
+
 ### Event shape
 
 ```typescript
 {
   id: string           // unique per event
   traceId: string      // groups related events
-  type: EventType      // 'dom' | 'network-request' | 'network-response' | ...
+  type: EventType      // 'dom' | 'network-request' | 'network-response' | 'console'
+                       // | 'error' | 'navigation' | 'backend-span' | 'state-change'
   timestamp: number    // Date.now()
-  url: string          // page URL
+  url: string          // page URL (or service:method route for backend spans)
   data: EventData      // type-specific payload
-  sourceStack: string  // V8 stack trace
+  sourceStack: string  // V8 stack trace (browser or Node.js format)
 }
 ```
 
@@ -183,6 +195,24 @@ A `TraceData` looks like:
 
 ---
 
+## Backend Span Collector
+
+`src/main/span-collector.ts` — HTTP server started on app boot.
+
+- Listens on port **9229** for POST requests containing backend span data
+- CORS enabled so any backend can POST spans
+- The `traceId` should match the `X-FlowLens-Trace-Id` header injected into the originating fetch/XHR request
+- Each span is split into **3 `backend-span` events** with phases `request`, `handler`, `response` — timestamps are calculated from the span's duration (start, midpoint, end)
+- `BackendSpanData` includes: `route`, `method`, `statusCode`, `duration`, `serviceName`, `phase`, and optional `step`
+- Accepts flexible source stack formats:
+  - `sourceStack` — full V8 stack string (e.g. `"Error\n    at handler (/path:10:5)"`)
+  - `stack` — alias for sourceStack
+  - `sourceFile` + `sourceLine` + `sourceColumn` + `sourceFunction` — synthesized into a V8 frame
+- Validates `traceId` (returns 400 if missing)
+- Gracefully handles port-in-use (logs warning, collector disabled)
+
+---
+
 ## IPC Channels
 
 ### Target → Main (send)
@@ -203,12 +233,12 @@ A `TraceData` looks like:
 | Channel | Args | Returns | Purpose |
 |---------|------|---------|---------|
 | `target:load-url` | `url` | `{ success }` | Create target view and load URL |
-| `target:unload` | — | `{ success }` | Destroy target view, clear traces |
+| `target:unload` | — | `{ success }` | Destroy target view, clear traces and source cache |
 | `target:set-split` | `ratio` (0.2–0.8) | `{ success }` | Adjust target/renderer split ratio |
 | `trace:get-all` | — | `TraceData[]` | Fetch all stored traces |
 | `trace:get` | `id` | `TraceData \| null` | Fetch single trace |
 | `trace:clear` | — | `{ success }` | Clear all traces |
-| `source:fetch` | `fileUrl` | `SourceResponse` | Fetch source file content |
+| `source:fetch` | `fileUrl` | `SourceResponse` | Fetch source (disk for local paths, HTTP + source map for URLs) |
 
 The renderer accesses these through the `window.flowlens` API (exposed by `preload/index.ts` via contextBridge).
 
@@ -243,18 +273,18 @@ The renderer accesses these through the `window.flowlens` API (exposed by `prelo
 ### Component tree
 
 ```
-App
+App (split-view drag handle between target and renderer)
 ├── OnboardingPage        (mode === 'onboarding')
-│   └── UrlInput
+│   └── UrlInput          (URL input + launch button)
 └── TracePage             (mode === 'trace')
     ├── StatusBar
     ├── Timeline
-    │   └── TraceGroup[]
-    │       └── TimelineEvent[]
+    │   └── TraceGroup[]          (labels: click/submit/navigation/Backend Span/State Update)
+    │       └── TimelineEvent[]   (badges: UI/REQ/RES/LOG/ERR/NAV/SVC/SET)
     ├── SourceCodePanel   (live mode or focus mode)
     ├── FlowNavigator     (only when a trace is focused)
     ├── ConsolePanel
-    └── EventDetailPanel  (overlay, only when event selected)
+    └── EventDetailPanel  (overlay — custom views for backend-span + state-change)
 ```
 
 ### Three core hooks
@@ -262,7 +292,7 @@ App
 | Hook | Responsibility |
 |------|----------------|
 | `useTraceEvents` | Subscribes to live event stream, accumulates traces, provides `traces[]` and `eventCount` |
-| `useSourceHitMap` | Parses stacks for every event, tracks per-file/line hit counts, auto-fetches source files, provides hit data + source cache |
+| `useSourceHitMap` | Parses stacks for every event, tracks per-file/line hit counts (`currentTraceHits` for live, `allTraceHits` for focus), auto-fetches source files, exposes `fetchSourceIfNeeded` for on-demand fetching |
 | `useConsoleEntries` | Extracts console/error events into filterable entries (capped at 2000) |
 
 ---
@@ -271,16 +301,24 @@ App
 
 ### How source is fetched
 
-When an event references a file (via its stack trace), the renderer calls `window.flowlens.fetchSource(fileUrl)`. The main process fetches the file over HTTP (e.g., from the Vite dev server at `http://localhost:3099/src/App.tsx`) and returns the content. Results are cached (LRU, max 100 files). Cache clears on page reload or unload.
+When an event references a file (via its stack trace), the renderer calls `window.flowlens.fetchSource(fileUrl)`. The source fetcher (`source-fetcher.ts`) resolves files in this order:
+
+1. **Absolute filesystem path** (starts with `/`) — reads directly from disk (backend Node.js stacks)
+2. **`file://` URL** (ESM Node.js stacks) — strips protocol, reads from disk
+3. **HTTP URL** — fetches from the dev server, then checks for an inline base64 source map (`//# sourceMappingURL=data:...`). If found, decodes the VLQ mappings, extracts the original source from `sourcesContent`, and returns it along with a `lineMap` (mapping transformed line numbers → original line numbers). If no source map, returns the raw content as-is.
+
+The `SourceResponse` type includes an optional `lineMap?: Record<number, number>` field, which is also stored in `SourceFileCache` by `useSourceHitMap`.
+
+Results are cached (LRU, max 100 files). Cache clears on page reload or unload.
 
 ### Stack parsing
 
-`stack-parser.ts` parses V8 stack traces and filters out non-user frames:
+`stack-parser.ts` parses V8 stack traces in three formats: browser HTTP URLs, Node.js filesystem paths (`/path/to/file.js:10:30`), and ESM `file://` URLs (`file:///path/to/file.js:10:30`). Uses `matchFrame()` which tries `CHROME_FRAME_RE` → `NODE_FRAME_RE` → `FILE_FRAME_RE`. Filters out non-user frames:
 
-- **Filtered out:** FlowLens instrumentation frames, `node_modules`, `.vite/deps`, browser extensions, devtools, VM scripts
+- **Filtered out:** FlowLens instrumentation frames, `node_modules`, `.vite/deps`, `node:` internals, browser extensions, devtools, VM scripts
 - **`parseUserSourceLocation(stack)`** — returns the first user-code frame (used in detail overlay)
 - **`parseAllUserFrames(stack)`** — returns all user-code frames (used for hit map + call stack display)
-- **`extractDisplayPath(url)`** — turns `http://localhost:3099/src/App.tsx` into `src/App.tsx`
+- **`extractDisplayPath(url)`** — `http://localhost:3099/src/App.tsx` → `src/App.tsx`; `/Users/x/project/server.js` → `project/server.js`; `file:///Users/x/project/server.js` → `project/server.js`
 
 ### Two display modes
 
@@ -288,7 +326,7 @@ When an event references a file (via its stack trace), the renderer calls `windo
 - As events arrive, their stack frames are parsed and hits accumulate per file/line
 - `useSourceHitMap` provides `currentTraceHits` (most recent trace with source hits)
 - File tabs show all files referenced in the current trace
-- Lines highlighted in **cyan** tones based on hit data
+- Lines highlighted in **orange** tones based on hit data
 - Auto-scrolls to the latest hit
 
 **Focus mode** (event selected from timeline) — shows a specific event's call stack:
@@ -301,21 +339,21 @@ When an event references a file (via its stack trace), the renderer calls `windo
 
 Each mode uses its own color scheme with 3 tiers of intensity:
 
-**Live mode (cyan):**
+**Live mode (orange):**
 
 | Tier | CSS class | Color | Meaning |
 |------|-----------|-------|---------|
-| 1 (deepest) | `hit-latest` | cyan 35% | Latest event's primary frame |
-| 2 (medium) | `hit-current-event` | cyan 18% | Other frames in the current event |
-| 3 (dim) | `hit-trace` | cyan 8% | Lines hit by other events in the trace |
+| 1 (deepest) | `hit-latest` | orange 18% | Latest event's primary frame |
+| 2 (medium) | `hit-current-event` | orange 10% | Other frames in the current event |
+| 3 (dim) | `hit-trace` | blue 10% | Lines hit by other events in the trace |
 
 **Focus mode (amber):**
 
 | Tier | CSS class | Color | Meaning |
 |------|-----------|-------|---------|
-| 1 (deepest) | `hit-nav-latest` | amber 22% | Current frame being inspected |
-| 2 (medium) | `hit-nav-current` | amber 12% | Other frames in the focused event |
-| 3 (dim) | `hit-trace` | cyan 8% | Lines hit by other events in the trace |
+| 1 (deepest) | `hit-nav-latest` | amber 18% | Current frame being inspected |
+| 2 (medium) | `hit-nav-current` | amber 10% | Other frames in the focused event |
+| 3 (dim) | `hit-trace` | blue 10% | Lines hit by other events in the trace |
 
 Each tier adds a left border and inset box-shadow for visual depth.
 
@@ -369,6 +407,18 @@ npm run dev          # starts on http://localhost:3099
 ```
 
 Load `http://localhost:3099` in FlowLens to test. The test app has buttons for clicks, network requests, console output, and error triggers.
+
+### Backend span collector
+
+FlowLens starts an HTTP collector on port 9229 at app boot. To send backend spans:
+
+```bash
+curl -X POST http://localhost:9229 \
+  -H 'Content-Type: application/json' \
+  -d '{"traceId":"<from X-FlowLens-Trace-Id header>","route":"/api/data","method":"GET","statusCode":200,"duration":42,"serviceName":"my-api","timestamp":1234567890,"sourceFile":"/path/to/handler.js","sourceLine":15}'
+```
+
+Each span is split into 3 events (request/handler/response phases) that appear in the timeline alongside frontend events from the same trace. Source stack can be provided as `sourceStack` (V8 string), `stack` (alias), or `sourceFile` + `sourceLine`.
 
 ### Tech stack
 

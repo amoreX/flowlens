@@ -114,6 +114,112 @@ function getInstrumentationScript(): string {
     }
   }
 
+  // State change detection — walks the React fiber tree after DOM events
+  // to find useState hooks whose value changed, emitting state-change events
+  function findFiberRoot(element) {
+    if (!element) return null;
+    var el = element;
+    while (el) {
+      var keys = Object.keys(el);
+      for (var i = 0; i < keys.length; i++) {
+        if (keys[i].indexOf('__reactFiber$') === 0) {
+          var fiber = el[keys[i]];
+          // Walk up to the root
+          var root = fiber;
+          while (root.return) root = root.return;
+          if (root.stateNode && root.stateNode.current) return root.stateNode;
+          return null;
+        }
+      }
+      el = el.parentElement;
+    }
+    return null;
+  }
+
+  function getFiberSourceStack(f) {
+    if (f._debugStack && f._debugStack.stack) {
+      return f._debugStack.stack;
+    }
+    if (f._debugSource) {
+      var fileName = f._debugSource.fileName;
+      if (fileName.indexOf('://') === -1) {
+        var srcIdx = fileName.indexOf('/src/');
+        if (srcIdx >= 0) fileName = location.origin + fileName.slice(srcIdx);
+        else if (fileName.charAt(0) === '/') fileName = location.origin + fileName;
+        else fileName = location.origin + '/' + fileName;
+      }
+      var name = 'Component';
+      if (f.type) {
+        if (typeof f.type === 'string') name = '<' + f.type + '>';
+        else if (f.type.displayName || f.type.name) name = f.type.displayName || f.type.name;
+      }
+      return '    at ' + name + ' (' + fileName + ':' + f._debugSource.lineNumber + ':' + (f._debugSource.columnNumber || 1) + ')';
+    }
+    return '';
+  }
+
+  function detectStateChanges(element, traceId) {
+    try {
+      var fiberRoot = findFiberRoot(element);
+      if (!fiberRoot) return;
+
+      var seen = {};
+
+      function walkFiber(f) {
+        if (!f) return;
+
+        // Only check function components with hooks and a previous render
+        if (typeof f.type === 'function' && f.memoizedState !== null && f.alternate !== null) {
+          var componentName = f.type.displayName || f.type.name || 'Anonymous';
+
+          // Walk the hooks linked list
+          var currentHook = f.memoizedState;
+          var alternateHook = f.alternate.memoizedState;
+          var hookIdx = 0;
+
+          while (currentHook && alternateHook) {
+            // Detect useState/useReducer hooks by the presence of queue.dispatch
+            if (currentHook.queue && typeof currentHook.queue.dispatch === 'function') {
+              var curVal = currentHook.memoizedState;
+              var prevVal = alternateHook.memoizedState;
+
+              if (!Object.is(curVal, prevVal)) {
+                var key = componentName + ':' + hookIdx;
+                if (!seen[key]) {
+                  seen[key] = true;
+
+                  var sourceStack = getFiberSourceStack(f);
+
+                  var prevStr, curStr;
+                  try { prevStr = JSON.stringify(prevVal); } catch(e) { prevStr = String(prevVal); }
+                  try { curStr = JSON.stringify(curVal); } catch(e) { curStr = String(curVal); }
+
+                  send('state-change', {
+                    component: componentName,
+                    hookIndex: hookIdx,
+                    prevValue: prevStr,
+                    value: curStr
+                  }, traceId, sourceStack);
+                }
+              }
+            }
+
+            hookIdx++;
+            currentHook = currentHook.next;
+            alternateHook = alternateHook.next;
+          }
+        }
+
+        walkFiber(f.child);
+        walkFiber(f.sibling);
+      }
+
+      walkFiber(fiberRoot.current);
+    } catch (err) {
+      // State detection is best-effort — silently fail
+    }
+  }
+
   // DOM events
   var domEvents = ['click', 'input', 'submit', 'change', 'focus', 'blur'];
   domEvents.forEach(function(evtType) {
@@ -122,6 +228,7 @@ function getInstrumentationScript(): string {
         currentTraceId = uid();
       }
       var el = e.target;
+      var traceId = currentTraceId;
       var componentStack = getReactComponentStack(el);
       send('dom', {
         eventType: evtType,
@@ -131,7 +238,12 @@ function getInstrumentationScript(): string {
         className: el ? String(el.className || '') : '',
         textContent: el && el.textContent ? el.textContent.slice(0, 100) : undefined,
         value: el && el.value !== undefined ? String(el.value).slice(0, 100) : undefined
-      }, null, componentStack);
+      }, traceId, componentStack);
+
+      // After React processes the event and re-renders, detect state changes
+      if (evtType === 'click' || evtType === 'submit' || evtType === 'change' || evtType === 'input') {
+        setTimeout(function() { detectStateChanges(el, traceId); }, 0);
+      }
     }, true);
   });
 
@@ -144,6 +256,17 @@ function getInstrumentationScript(): string {
     var traceId = currentTraceId;
     var start = Date.now();
 
+    // Inject trace header for backend correlation
+    if (!init) init = {};
+    if (!init.headers) init.headers = {};
+    if (init.headers instanceof Headers) {
+      init.headers.set('X-FlowLens-Trace-Id', traceId);
+    } else if (Array.isArray(init.headers)) {
+      init.headers.push(['X-FlowLens-Trace-Id', traceId]);
+    } else {
+      init.headers['X-FlowLens-Trace-Id'] = traceId;
+    }
+
     send('network-request', {
       requestId: reqId,
       method: method,
@@ -151,7 +274,7 @@ function getInstrumentationScript(): string {
       body: init && init.body ? String(init.body).slice(0, 500) : undefined
     }, traceId);
 
-    return origFetch.apply(this, arguments).then(function(res) {
+    return origFetch.call(this, input, init).then(function(res) {
       send('network-response', {
         requestId: reqId,
         method: method,
@@ -188,6 +311,9 @@ function getInstrumentationScript(): string {
   XMLHttpRequest.prototype.send = function(body) {
     var xhr = this;
     var start = Date.now();
+
+    // Inject trace header for backend correlation
+    try { xhr.setRequestHeader('X-FlowLens-Trace-Id', xhr.__fl_traceId); } catch(e) {}
 
     send('network-request', {
       requestId: xhr.__fl_reqId,

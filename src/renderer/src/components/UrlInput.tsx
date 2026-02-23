@@ -17,12 +17,10 @@ function validateUrl(raw: string): ValidationResult {
     return { valid: false, url: '', error: 'Enter a URL to get started' }
   }
 
-  // Block obviously wrong input
   if (/\s/.test(trimmed)) {
     return { valid: false, url: '', error: 'URL cannot contain spaces' }
   }
 
-  // Auto-prepend https:// when no protocol given
   const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
 
   let parsed: URL
@@ -32,18 +30,15 @@ function validateUrl(raw: string): ValidationResult {
     return { valid: false, url: '', error: 'That doesn\u2019t look like a valid URL' }
   }
 
-  // Only http/https
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
     return { valid: false, url: '', error: 'Only http:// and https:// URLs are supported' }
   }
 
-  // Must have a real hostname with at least one dot (or localhost)
   const host = parsed.hostname.toLowerCase()
   if (host !== 'localhost' && !/\.\w{2,}$/.test(host)) {
     return { valid: false, url: '', error: 'Enter a full domain (e.g. example.com)' }
   }
 
-  // Block common non-web schemes people might paste
   if (/^(file|ftp|mailto|tel|javascript):/i.test(trimmed)) {
     return { valid: false, url: '', error: 'Only http/https URLs are supported' }
   }
@@ -73,24 +68,30 @@ export function UrlInput({ onLaunch }: UrlInputProps) {
   return (
     <div className="url-input-wrapper">
       <form className="url-input-group" onSubmit={handleSubmit}>
-        <input
-          type="text"
-          className="url-input no-drag"
-          placeholder="https://example.com"
-          value={url}
-          onChange={(e) => {
-            setUrl(e.target.value)
-            if (error) setError('')
-          }}
-          autoFocus
-          spellCheck={false}
-          autoComplete="off"
-          autoCorrect="off"
-        />
+        <div className="input-field">
+          <label className="input-label">Dev Server URL</label>
+          <input
+            type="text"
+            className="url-input no-drag"
+            placeholder="http://localhost:3099"
+            value={url}
+            onChange={(e) => {
+              setUrl(e.target.value)
+              if (error) setError('')
+            }}
+            autoFocus
+            spellCheck={false}
+            autoComplete="off"
+            autoCorrect="off"
+          />
+        </div>
         <button type="submit" className="url-launch-btn no-drag" disabled={loading}>
           {loading ? 'Loading...' : 'Launch'}
         </button>
       </form>
+      <div className="input-hint">
+        Source code is loaded from your dev server. Backend source files are resolved automatically from stack traces.
+      </div>
       {error && <div className="url-input-error">{error}</div>}
     </div>
   )

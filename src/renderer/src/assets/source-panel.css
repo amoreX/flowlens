@@ -68,6 +68,11 @@
   background: rgba(255, 255, 255, 0.18);
 }
 
+.source-code-lines {
+  min-width: 100%;
+  width: max-content;
+}
+
 .source-panel-line {
   display: flex;
   padding: 0 var(--space-3);
@@ -93,29 +98,44 @@
   flex: 1;
   white-space: pre;
   color: var(--text-dark-secondary);
+  padding-right: var(--space-4);
 }
 
-/* ── 3-tier highlight system ── */
+/* ── 3-tier highlight system ──
+   All highlighted lines use a left border-style gutter indicator
+   and full-row background that stretches the entire scrollable width
+   thanks to the .source-code-lines wrapper using width: max-content.
+*/
 
 @keyframes highlight-pulse {
-  0% { background: rgba(255, 108, 55, 0.4); }
-  100% { background: rgba(255, 108, 55, 0.2); }
+  0% { background: rgba(255, 108, 55, 0.35); }
+  100% { background: rgba(255, 108, 55, 0.18); }
 }
 
 @keyframes highlight-pulse-trace {
-  0% { background: rgba(91, 156, 246, 0.25); }
-  100% { background: rgba(91, 156, 246, 0.1); }
+  0% { background: rgba(91, 156, 246, 0.22); }
+  100% { background: rgba(91, 156, 246, 0.10); }
+}
+
+/* Shared: all highlighted lines get a left gutter stripe */
+.source-panel-line.hit-latest,
+.source-panel-line.hit-current-event,
+.source-panel-line.hit-trace,
+.source-panel-line.hit-nav-latest,
+.source-panel-line.hit-nav-current {
+  padding-left: calc(var(--space-3) - 3px);
+  border-left: 3px solid transparent;
 }
 
 /* TIER 1: Latest line — accent orange */
 .source-panel-line.hit-latest {
-  background: rgba(255, 108, 55, 0.2);
-  border-left: 3px solid var(--accent);
-  animation: highlight-pulse 600ms ease-out;
+  background: rgba(255, 108, 55, 0.18);
+  border-left-color: var(--accent);
+  animation: highlight-pulse 500ms ease-out;
 }
 
 .source-panel-line.hit-latest:hover {
-  background: rgba(255, 108, 55, 0.28);
+  background: rgba(255, 108, 55, 0.26);
 }
 
 .source-panel-line.hit-latest .source-panel-line-number {
@@ -123,11 +143,14 @@
   opacity: 1;
 }
 
+.source-panel-line.hit-latest .source-panel-line-content {
+  color: var(--text-dark-primary, #e2e8f0);
+}
+
 /* TIER 2: Current event's other frames */
 .source-panel-line.hit-current-event {
-  background: rgba(255, 108, 55, 0.1);
-  border-left: 3px solid var(--accent-dim);
-  animation: highlight-pulse-trace 600ms ease-out;
+  background: rgba(255, 108, 55, 0.10);
+  border-left-color: var(--accent-dim);
 }
 
 .source-panel-line.hit-current-event:hover {
@@ -141,9 +164,9 @@
 
 /* TIER 3: Other events in same trace — subtle blue */
 .source-panel-line.hit-trace {
-  background: rgba(91, 156, 246, 0.1);
-  border-left: 2px solid rgba(91, 156, 246, 0.4);
-  animation: highlight-pulse-trace 600ms ease-out;
+  background: rgba(91, 156, 246, 0.10);
+  border-left-color: rgba(91, 156, 246, 0.45);
+  animation: highlight-pulse-trace 500ms ease-out;
 }
 
 .source-panel-line.hit-trace:hover {
@@ -151,30 +174,25 @@
 }
 
 .source-panel-line.hit-trace .source-panel-line-number {
-  color: var(--text-dark-tertiary);
-  opacity: 0.8;
+  color: rgba(91, 156, 246, 0.7);
+  opacity: 1;
 }
 
-/* ── Navigation mode: current event in amber ── */
+/* ── Navigation / Focus mode: current event in amber ── */
 
 @keyframes highlight-pulse-nav {
-  0% { background: rgba(251, 191, 36, 0.4); }
-  100% { background: rgba(251, 191, 36, 0.22); }
-}
-
-@keyframes highlight-pulse-nav-dim {
-  0% { background: rgba(251, 191, 36, 0.25); }
-  100% { background: rgba(251, 191, 36, 0.12); }
+  0% { background: rgba(251, 191, 36, 0.35); }
+  100% { background: rgba(251, 191, 36, 0.18); }
 }
 
 .source-panel-line.hit-nav-latest {
-  background: rgba(251, 191, 36, 0.22);
-  border-left: 3px solid var(--amber);
-  animation: highlight-pulse-nav 600ms ease-out;
+  background: rgba(251, 191, 36, 0.18);
+  border-left-color: var(--amber);
+  animation: highlight-pulse-nav 500ms ease-out;
 }
 
 .source-panel-line.hit-nav-latest:hover {
-  background: rgba(251, 191, 36, 0.3);
+  background: rgba(251, 191, 36, 0.26);
 }
 
 .source-panel-line.hit-nav-latest .source-panel-line-number {
@@ -182,14 +200,17 @@
   opacity: 1;
 }
 
+.source-panel-line.hit-nav-latest .source-panel-line-content {
+  color: var(--text-dark-primary, #e2e8f0);
+}
+
 .source-panel-line.hit-nav-current {
-  background: rgba(251, 191, 36, 0.12);
-  border-left: 3px solid rgba(251, 191, 36, 0.5);
-  animation: highlight-pulse-nav-dim 600ms ease-out;
+  background: rgba(251, 191, 36, 0.10);
+  border-left-color: rgba(251, 191, 36, 0.5);
 }
 
 .source-panel-line.hit-nav-current:hover {
-  background: rgba(251, 191, 36, 0.18);
+  background: rgba(251, 191, 36, 0.16);
 }
 
 .source-panel-line.hit-nav-current .source-panel-line-number {

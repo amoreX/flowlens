@@ -9,6 +9,8 @@ export type {
   ConsoleEventData,
   ErrorEventData,
   NavigationEventData,
+  BackendSpanData,
+  StateChangeData,
   EventData,
   SourceLocation,
   SourceResponse,

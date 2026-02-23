@@ -1,4 +1,4 @@
-import type { CapturedEvent } from '../types/events'
+import type { CapturedEvent, BackendSpanData, StateChangeData } from '../types/events'
 import { SourceCodeViewer } from './SourceCodeViewer'
 import '../assets/detail-panel.css'
 
@@ -15,6 +15,64 @@ function formatTimestamp(ts: number): string {
     second: '2-digit',
     fractionalSecondDigits: 3
   })
+}
+
+function StateChangeDetail({ data }: { data: StateChangeData }) {
+  return (
+    <div className="detail-state-change">
+      <div className="detail-row">
+        <span className="detail-key">Component</span>
+        <span className="detail-value">{data.component}</span>
+      </div>
+      <div className="detail-row">
+        <span className="detail-key">Hook</span>
+        <span className="detail-value">useState #{data.hookIndex}</span>
+      </div>
+      <div className="detail-row">
+        <span className="detail-key">Previous</span>
+        <span className="detail-value">{data.prevValue}</span>
+      </div>
+      <div className="detail-row">
+        <span className="detail-key">Current</span>
+        <span className="detail-value">{data.value}</span>
+      </div>
+    </div>
+  )
+}
+
+function BackendSpanDetail({ data }: { data: BackendSpanData }) {
+  return (
+    <div className="detail-backend-span">
+      {data.phase && (
+        <div className="detail-row">
+          <span className="detail-key">Phase</span>
+          <span className="detail-value">{data.phase}</span>
+        </div>
+      )}
+      {data.step && (
+        <div className="detail-row">
+          <span className="detail-key">Step</span>
+          <span className="detail-value">{data.step}</span>
+        </div>
+      )}
+      <div className="detail-row">
+        <span className="detail-key">Service</span>
+        <span className="detail-value">{data.serviceName}</span>
+      </div>
+      <div className="detail-row">
+        <span className="detail-key">Route</span>
+        <span className="detail-value">{data.method} {data.route}</span>
+      </div>
+      <div className="detail-row">
+        <span className="detail-key">Status</span>
+        <span className="detail-value">{data.statusCode}</span>
+      </div>
+      <div className="detail-row">
+        <span className="detail-key">Duration</span>
+        <span className="detail-value">{data.duration}ms</span>
+      </div>
+    </div>
+  )
 }
 
 export function EventDetailPanel({ event, onClose }: EventDetailPanelProps) {
@@ -56,7 +114,13 @@ export function EventDetailPanel({ event, onClose }: EventDetailPanelProps) {
 
           <div className="detail-section">
             <div className="detail-section-title">Data</div>
-            <pre className="detail-json">{JSON.stringify(event.data, null, 2)}</pre>
+            {event.type === 'backend-span' ? (
+              <BackendSpanDetail data={event.data as BackendSpanData} />
+            ) : event.type === 'state-change' ? (
+              <StateChangeDetail data={event.data as StateChangeData} />
+            ) : (
+              <pre className="detail-json">{JSON.stringify(event.data, null, 2)}</pre>
+            )}
           </div>
 
           <SourceCodeViewer event={event} />

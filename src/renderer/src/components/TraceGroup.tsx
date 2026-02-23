@@ -26,6 +26,12 @@ function getTraceLabel(trace: TraceData): string {
   if (root.type === 'navigation') {
     return `Navigation`
   }
+  if (root.type === 'backend-span') {
+    return `Backend Span`
+  }
+  if (root.type === 'state-change') {
+    return `State Update`
+  }
   return `${root.type}`
 }
 

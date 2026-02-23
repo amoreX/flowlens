@@ -8,11 +8,20 @@ interface SourceCodeViewerProps {
   event: CapturedEvent
 }
 
+function getEffectiveStack(event: CapturedEvent): string | undefined {
+  if (event.sourceStack) return event.sourceStack
+  if (event.type === 'backend-span' && event.data) {
+    const bd = event.data as { sourceStack?: string }
+    if (typeof bd.sourceStack === 'string') return bd.sourceStack
+  }
+  return undefined
+}
+
 type ViewerState =
   | { status: 'no-location' }
   | { status: 'loading'; location: SourceLocation }
   | { status: 'error'; location: SourceLocation; error: string }
-  | { status: 'loaded'; location: SourceLocation; content: string }
+  | { status: 'loaded'; location: SourceLocation; content: string; lineMap?: Record<number, number> }
 
 const CONTEXT_LINES = 10
 
@@ -22,7 +31,8 @@ export function SourceCodeViewer({ event }: SourceCodeViewerProps) {
   const highlightRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const location = parseUserSourceLocation(event.sourceStack)
+    const stack = getEffectiveStack(event)
+    const location = parseUserSourceLocation(stack)
     if (!location) {
       setState({ status: 'no-location' })
       return
@@ -34,12 +44,16 @@ export function SourceCodeViewer({ event }: SourceCodeViewerProps) {
       if (result.error !== undefined) {
         setState({ status: 'error', location, error: result.error })
       } else {
-        setState({ status: 'loaded', location, content: result.content! })
+        setState({
+          status: 'loaded',
+          location,
+          content: result.content!,
+          lineMap: result.lineMap
+        })
       }
     })
   }, [event.id])
 
-  // Scroll highlighted line into view
   useEffect(() => {
     if (state.status === 'loaded' && highlightRef.current) {
       highlightRef.current.scrollIntoView({ block: 'center', behavior: 'smooth' })
@@ -58,6 +72,9 @@ export function SourceCodeViewer({ event }: SourceCodeViewerProps) {
   }
 
   const displayPath = extractDisplayPath(state.location.filePath)
+  const mappedLine = state.status === 'loaded' && state.lineMap
+    ? (state.lineMap[state.location.line] ?? state.location.line)
+    : state.location.line
 
   return (
     <div className="source-viewer-section">
@@ -65,7 +82,7 @@ export function SourceCodeViewer({ event }: SourceCodeViewerProps) {
         <span className={`source-viewer-chevron${expanded ? ' expanded' : ''}`}>&#9654;</span>
         <span className="source-viewer-title">Source</span>
         <span className="source-viewer-file" title={state.location.filePath}>
-          {displayPath}:{state.location.line}
+          {displayPath}:{mappedLine}
         </span>
       </div>
 
@@ -80,7 +97,7 @@ export function SourceCodeViewer({ event }: SourceCodeViewerProps) {
           {state.status === 'loaded' && (
             <SourceCodeBlock
               content={state.content}
-              targetLine={state.location.line}
+              targetLine={mappedLine}
               highlightRef={highlightRef}
             />
           )}
@@ -125,4 +142,3 @@ function SourceCodeBlock({ content, targetLine, highlightRef }: SourceCodeBlockP
     </div>
   )
 }
-

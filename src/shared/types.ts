@@ -6,6 +6,8 @@ export type EventType =
   | 'console'
   | 'error'
   | 'navigation'
+  | 'backend-span'
+  | 'state-change'
 
 export interface DomEventData {
   eventType: string
@@ -63,6 +65,24 @@ export interface NavigationEventData {
   type: 'navigate' | 'spa-navigation'
 }
 
+export interface BackendSpanData {
+  route: string
+  method: string
+  statusCode: number
+  duration: number
+  serviceName: string
+  sourceStack?: string
+  phase?: 'request' | 'handler' | 'response'
+  step?: string
+}
+
+export interface StateChangeData {
+  component: string
+  hookIndex: number
+  prevValue: string
+  value: string
+}
+
 export type EventData =
   | DomEventData
   | NetworkRequestData
@@ -71,6 +91,8 @@ export type EventData =
   | ConsoleEventData
   | ErrorEventData
   | NavigationEventData
+  | BackendSpanData
+  | StateChangeData
 
 export interface CapturedEvent {
   id: string
@@ -102,6 +124,8 @@ export interface SourceFetchResult {
   content: string
   filePath: string
   error?: undefined
+  /** Maps transformed line numbers (from stack traces) → original source line numbers */
+  lineMap?: Record<number, number>
 }
 
 export interface SourceFetchError {

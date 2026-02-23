@@ -92,8 +92,25 @@
 
 .url-input-group {
   display: flex;
-  gap: var(--space-2);
+  flex-direction: column;
+  gap: var(--space-3);
   width: 100%;
+}
+
+.input-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.input-label {
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding-left: var(--space-1);
 }
 
 .url-input {
@@ -121,6 +138,7 @@
 .url-launch-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: var(--space-2);
   background: var(--accent);
   color: #ffffff;
@@ -133,6 +151,7 @@
   cursor: pointer;
   transition: all 150ms ease;
   white-space: nowrap;
+  margin-top: var(--space-1);
 }
 
 .url-launch-btn:hover {
@@ -148,6 +167,17 @@
   opacity: 0.4;
   cursor: not-allowed;
   transform: none;
+}
+
+/* Hint text below the form */
+.input-hint {
+  font-family: var(--font-sans);
+  font-size: 0.65rem;
+  color: var(--text-tertiary);
+  text-align: center;
+  margin-top: var(--space-3);
+  line-height: 1.6;
+  opacity: 0.7;
 }
 
 .url-input-error {

@@ -6,7 +6,9 @@ import type {
   NetworkErrorData,
   ConsoleEventData,
   ErrorEventData,
-  NavigationEventData
+  NavigationEventData,
+  BackendSpanData,
+  StateChangeData
 } from '../types/events'
 
 interface TimelineEventProps {
@@ -22,8 +24,8 @@ function formatOffset(ms: number): string {
   return `+${(ms / 1000).toFixed(1)}s`
 }
 
-function badgeLabel(type: string): string {
-  switch (type) {
+function badgeLabel(event: CapturedEvent): string {
+  switch (event.type) {
     case 'dom': return 'UI'
     case 'network-request': return 'REQ'
     case 'network-response': return 'RES'
@@ -31,7 +33,15 @@ function badgeLabel(type: string): string {
     case 'console': return 'LOG'
     case 'error': return 'ERR'
     case 'navigation': return 'NAV'
-    default: return type.toUpperCase()
+    case 'backend-span': {
+      const d = event.data as BackendSpanData
+      if (d.phase === 'request') return 'REQ'
+      if (d.phase === 'handler') return 'APP'
+      if (d.phase === 'response') return 'RES'
+      return 'SVC'
+    }
+    case 'state-change': return 'SET'
+    default: return 'EVT'
   }
 }
 
@@ -66,6 +76,20 @@ function getSummary(event: CapturedEvent): string {
       const d = data as NavigationEventData
       return d.url
     }
+    case 'backend-span': {
+      const d = data as BackendSpanData
+      if (d.phase === 'request') {
+        return `[${d.serviceName}] REQ ${d.method} ${d.route}`
+      }
+      if (d.phase === 'handler') {
+        return `[${d.serviceName}] APP ${d.method} ${d.route}${d.step ? ` (${d.step})` : ''}`
+      }
+      return `[${d.serviceName}] RES ${d.statusCode} ${d.method} ${d.route} (${d.duration}ms)`
+    }
+    case 'state-change': {
+      const d = data as StateChangeData
+      return `${d.component} — ${d.prevValue} → ${d.value}`
+    }
     default:
       return JSON.stringify(data)
   }
@@ -78,7 +102,7 @@ export function TimelineEvent({ event, traceStartTime, selected, focused, onClic
   return (
     <div className={cls} onClick={onClick}>
       <span className="event-offset">{formatOffset(offset)}</span>
-      <span className={`event-type-badge ${event.type}`}>{badgeLabel(event.type)}</span>
+      <span className={`event-type-badge ${event.type}`}>{badgeLabel(event)}</span>
       <span className="event-summary" title={getSummary(event)}>
         {getSummary(event)}
       </span>

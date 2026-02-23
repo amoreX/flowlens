@@ -30,6 +30,8 @@ export interface SourceFileCache {
   content: string | null
   loading: boolean
   error: string | null
+  /** Maps transformed line numbers → original source line numbers (from source maps) */
+  lineMap?: Record<number, number> | null
 }
 
 export interface SourceHitMap {
@@ -44,6 +46,8 @@ export interface SourceHitMap {
   /** Active file in live mode */
   activeFile: string | null
   setActiveFile: (fp: string) => void
+  /** Fetch a source file and add it to the cache (deduped) */
+  fetchSourceIfNeeded: (filePath: string) => void
 }
 
 let globalSeq = 0
@@ -56,7 +60,12 @@ function computeTraceHits(traceId: string, events: CapturedEvent[]): TraceHitDat
   let latestTimestamp = 0
 
   for (const event of events) {
-    const frames = parseAllUserFrames(event.sourceStack)
+    let stack = event.sourceStack
+    if (!stack && event.type === 'backend-span' && event.data) {
+      const bd = event.data as { sourceStack?: string }
+      if (typeof bd.sourceStack === 'string') stack = bd.sourceStack
+    }
+    const frames = parseAllUserFrames(stack)
     for (let fi = 0; fi < frames.length; fi++) {
       const frame = frames[fi]
       let fileData = files.get(frame.filePath)
@@ -129,7 +138,12 @@ export function useSourceHitMap(): SourceHitMap {
       if (result.error !== undefined) {
         updated.set(filePath, { content: null, loading: false, error: result.error })
       } else {
-        updated.set(filePath, { content: result.content!, loading: false, error: null })
+        updated.set(filePath, {
+          content: result.content!,
+          loading: false,
+          error: null,
+          lineMap: result.lineMap ?? null
+        })
       }
       sourceCacheRef.current = updated
       setSourceCache(updated)
@@ -139,7 +153,6 @@ export function useSourceHitMap(): SourceHitMap {
   const processEvent = useCallback((event: CapturedEvent) => {
     const { traceId } = event
 
-    // Accumulate events per trace
     const eventsMap = traceEventsRef.current
     if (!eventsMap.has(traceId)) {
       eventsMap.set(traceId, [])
@@ -224,6 +237,7 @@ export function useSourceHitMap(): SourceHitMap {
     sourceCache,
     currentFileOrder,
     activeFile,
-    setActiveFile
+    setActiveFile,
+    fetchSourceIfNeeded
   }
 }
