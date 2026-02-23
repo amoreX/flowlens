@@ -18,11 +18,12 @@ export function OnboardingPage({ onLaunch }: OnboardingPageProps) {
       <div className="onboarding-glow" />
 
       <div className="onboarding-content">
+        <div className="onboarding-badge">Developer Tool</div>
         <h1 className="onboarding-title">
-          <span>FlowLens</span>
+          <span>Flow</span>Lens
         </h1>
         <p className="onboarding-subtitle">
-          Unified visibility into frontend execution flows, network calls, and telemetry — all in one place.
+          Trace frontend execution flows, network calls, and console output — all in one unified timeline. Paste a URL to start debugging.
         </p>
         <UrlInput onLaunch={onLaunch} />
         <div className="onboarding-hints">
@@ -35,6 +36,20 @@ export function OnboardingPage({ onLaunch }: OnboardingPageProps) {
               {url.replace('https://', '')}
             </button>
           ))}
+        </div>
+        <div className="onboarding-features">
+          <div className="onboarding-feature">
+            <span className="feature-dot" style={{ background: 'var(--accent)' }} />
+            <span>DOM + Network tracing</span>
+          </div>
+          <div className="onboarding-feature">
+            <span className="feature-dot" style={{ background: 'var(--blue)' }} />
+            <span>Source code mapping</span>
+          </div>
+          <div className="onboarding-feature">
+            <span className="feature-dot" style={{ background: 'var(--green)' }} />
+            <span>Live console capture</span>
+          </div>
         </div>
       </div>
     </div>

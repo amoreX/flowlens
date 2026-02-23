@@ -39,53 +39,73 @@ function getInstrumentationScript(): string {
     });
   }
 
-  // Extract React component source info from fiber tree (_debugSource in dev mode)
+  // Normalize filesystem paths to dev server URLs
+  function normalizePath(fileName) {
+    if (fileName.indexOf('://') !== -1) return fileName;
+    var srcIdx = fileName.indexOf('/src/');
+    if (srcIdx >= 0) return location.origin + fileName.slice(srcIdx);
+    if (fileName.charAt(0) === '/') return location.origin + fileName;
+    return location.origin + '/' + fileName;
+  }
+
+  // Extract React component + JSX element source info from fiber tree
   function getReactComponentStack(element) {
     if (!element) return '';
     try {
-      var fiber = null;
-      var keys = Object.keys(element);
-      for (var i = 0; i < keys.length; i++) {
-        if (keys[i].indexOf('__reactFiber$') === 0) {
-          fiber = element[keys[i]];
-          break;
-        }
-      }
-      if (!fiber) return '';
-
       var frames = [];
       var seen = {};
-      var f = fiber;
-      while (f && frames.length < 10) {
-        if (f._debugSource) {
-          var key = f._debugSource.fileName + ':' + f._debugSource.lineNumber;
-          if (!seen[key]) {
-            seen[key] = true;
-            var fileName = f._debugSource.fileName;
-            // Convert filesystem paths to dev server URLs
-            if (fileName.indexOf('://') === -1) {
-              var srcIdx = fileName.indexOf('/src/');
-              if (srcIdx >= 0) {
-                fileName = location.origin + fileName.slice(srcIdx);
-              } else if (fileName.charAt(0) === '/') {
-                fileName = location.origin + fileName;
-              } else {
-                fileName = location.origin + '/' + fileName;
-              }
-            }
-            var name = 'Component';
-            if (f.type) {
-              if (typeof f.type === 'string') {
-                name = f.type;
-              } else if (f.type.displayName || f.type.name) {
-                name = f.type.displayName || f.type.name;
-              }
-            }
-            frames.push('    at ' + name + ' (' + fileName + ':' + f._debugSource.lineNumber + ':' + (f._debugSource.columnNumber || 1) + ')');
+
+      function addFrame(fileName, lineNumber, columnNumber, name) {
+        fileName = normalizePath(fileName);
+        var key = fileName + ':' + lineNumber;
+        if (seen[key]) return;
+        seen[key] = true;
+        frames.push('    at ' + name + ' (' + fileName + ':' + lineNumber + ':' + (columnNumber || 1) + ')');
+      }
+
+      // 1. Check __reactProps$ for __source (JSX source transform on native elements)
+      var keys = Object.keys(element);
+      var fiberKey = null;
+      for (var i = 0; i < keys.length; i++) {
+        if (keys[i].indexOf('__reactProps$') === 0) {
+          var props = element[keys[i]];
+          if (props && props.__source) {
+            var tagName = element.tagName ? element.tagName.toLowerCase() : 'element';
+            addFrame(props.__source.fileName, props.__source.lineNumber, props.__source.columnNumber, '<' + tagName + '>');
           }
         }
-        f = f.return;
+        if (keys[i].indexOf('__reactFiber$') === 0) {
+          fiberKey = keys[i];
+        }
       }
+
+      // 2. Walk fiber tree for _debugSource and memoizedProps.__source
+      if (fiberKey) {
+        var f = element[fiberKey];
+        while (f && frames.length < 12) {
+          // Check _debugSource (React dev mode)
+          if (f._debugSource) {
+            var name = 'Component';
+            if (f.type) {
+              if (typeof f.type === 'string') name = '<' + f.type + '>';
+              else if (f.type.displayName || f.type.name) name = f.type.displayName || f.type.name;
+            }
+            addFrame(f._debugSource.fileName, f._debugSource.lineNumber, f._debugSource.columnNumber, name);
+          }
+          // Check memoizedProps.__source as fallback (host elements in some React versions)
+          else if (f.memoizedProps && f.memoizedProps.__source) {
+            var src = f.memoizedProps.__source;
+            var pName = 'element';
+            if (f.type) {
+              if (typeof f.type === 'string') pName = '<' + f.type + '>';
+              else if (f.type.displayName || f.type.name) pName = f.type.displayName || f.type.name;
+            }
+            addFrame(src.fileName, src.lineNumber, src.columnNumber, pName);
+          }
+          f = f.return;
+        }
+      }
+
       return frames.join('\\n');
     } catch(e2) {
       return '';
