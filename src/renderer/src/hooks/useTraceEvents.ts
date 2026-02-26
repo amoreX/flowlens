@@ -80,6 +80,8 @@ export function useTraceEvents() {
       eventCountRef.current = count
       setEventCount(count)
       setTraces(Object.values(map).sort((a, b) => b.startTime - a.startTime))
+    }).catch(() => {
+      // May fail in SDK mode or during initialization — safe to ignore
     })
 
     return unsubscribe

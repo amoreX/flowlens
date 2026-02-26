@@ -26,10 +26,11 @@ export function createExpressMiddleware(config: FlowLensNodeConfig): ExpressMidd
     }
 
     const start = Date.now()
-    const handlerStack = captureStack()
+    const requestStack = captureStack()
 
     const onFinish = (): void => {
       res.removeListener('finish', onFinish)
+      const responseStack = captureStack()
       const duration = Date.now() - start
       const route = (req as ExpressRequest).route?.path || req.url || '/'
       const method = req.method || 'GET'
@@ -42,7 +43,10 @@ export function createExpressMiddleware(config: FlowLensNodeConfig): ExpressMidd
         duration,
         serviceName,
         timestamp: Date.now(),
-        handlerStack
+        sourceStack: requestStack,
+        requestStack,
+        handlerStack: requestStack,
+        responseStack
       })
     }
 

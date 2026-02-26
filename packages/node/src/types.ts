@@ -38,6 +38,9 @@ export interface SpanPayload {
   duration: number
   serviceName: string
   timestamp: number
+  /** Generic stack fallback for all phases */
+  sourceStack?: string
+  requestStack?: string
   handlerStack?: string
   responseStack?: string
 }

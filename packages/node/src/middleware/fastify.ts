@@ -76,6 +76,8 @@ export function createFastifyPlugin(config: FlowLensNodeConfig) {
           (request.routeOptions as { url?: string })?.url || (request.url as string) || '/'
         const method = (request.method as string) || 'GET'
 
+        const handlerStack = request.__flowlens_stack as string | undefined
+
         sendSpan(collectorUrl, {
           traceId,
           route,
@@ -84,7 +86,9 @@ export function createFastifyPlugin(config: FlowLensNodeConfig) {
           duration,
           serviceName,
           timestamp: Date.now(),
-          handlerStack: request.__flowlens_stack as string | undefined,
+          sourceStack: handlerStack,
+          requestStack: handlerStack,
+          handlerStack,
           responseStack: request.__flowlens_responseStack as string | undefined
         })
 

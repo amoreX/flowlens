@@ -32,9 +32,10 @@ export function wrapHandler(handler: NodeHandler, config: FlowLensNodeConfig): N
     }
 
     const start = Date.now()
-    const handlerStack = captureStack()
+    const requestStack = captureStack()
 
     res.on('finish', () => {
+      const responseStack = captureStack()
       const duration = Date.now() - start
       sendSpan(collectorUrl, {
         traceId,
@@ -44,7 +45,10 @@ export function wrapHandler(handler: NodeHandler, config: FlowLensNodeConfig): N
         duration,
         serviceName,
         timestamp: Date.now(),
-        handlerStack
+        sourceStack: requestStack,
+        requestStack,
+        handlerStack: requestStack,
+        responseStack
       })
     })
 

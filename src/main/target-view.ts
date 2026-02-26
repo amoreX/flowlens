@@ -310,14 +310,25 @@ function getInstrumentationScript(): string {
     }, traceId);
 
     return origFetch.call(this, input, init).then(function(res) {
-      send('network-response', {
+      var respData = {
         requestId: reqId,
         method: method,
         url: url,
         status: res.status,
         statusText: res.statusText,
         duration: Date.now() - start
-      }, traceId);
+      };
+      try {
+        var clone = res.clone();
+        clone.text().then(function(bodyText) {
+          respData.bodyPreview = bodyText.slice(0, 2000);
+          send('network-response', respData, traceId);
+        }).catch(function() {
+          send('network-response', respData, traceId);
+        });
+      } catch(e) {
+        send('network-response', respData, traceId);
+      }
       scheduleStateDetection(traceId, document.body);
       return res;
     }).catch(function(err) {
@@ -360,13 +371,16 @@ function getInstrumentationScript(): string {
     }, xhr.__fl_traceId);
 
     xhr.addEventListener('load', function() {
+      var bodyPreview;
+      try { bodyPreview = (xhr.responseText || '').slice(0, 2000); } catch(e) {}
       send('network-response', {
         requestId: xhr.__fl_reqId,
         method: xhr.__fl_method,
         url: xhr.__fl_url,
         status: xhr.status,
         statusText: xhr.statusText,
-        duration: Date.now() - start
+        duration: Date.now() - start,
+        bodyPreview: bodyPreview
       }, xhr.__fl_traceId);
       scheduleStateDetection(xhr.__fl_traceId, document.body);
     });

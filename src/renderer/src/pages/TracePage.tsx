@@ -1,11 +1,13 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { useTraceEvents } from '../hooks/useTraceEvents'
 import { useConsoleEntries } from '../hooks/useConsoleEntries'
+import { useInspectorEntries } from '../hooks/useInspectorEntries'
 import { useSourceHitMap } from '../hooks/useSourceHitMap'
 import { StatusBar } from '../components/StatusBar'
 import { Timeline } from '../components/Timeline'
 import { SourceCodePanel } from '../components/SourceCodePanel'
 import { ConsolePanel } from '../components/ConsolePanel'
+import { InspectorPanel } from '../components/InspectorPanel'
 import { FlowNavigator } from '../components/FlowNavigator'
 import { EventDetailPanel } from '../components/EventDetailPanel'
 import { parseAllUserFrames } from '../utils/stack-parser'
@@ -27,9 +29,11 @@ export function TracePage({ targetUrl, onStop, sdkMode, sdkConnections }: TraceP
   const [focusedTraceId, setFocusedTraceId] = useState<string | null>(null)
   const [focusedEventIndex, setFocusedEventIndex] = useState(0)
 
-  // Console
+  // Console & Inspector
   const consoleEntries = useConsoleEntries()
-  const [consoleCollapsed, setConsoleCollapsed] = useState(false)
+  const inspectorEntries = useInspectorEntries()
+  const [bottomCollapsed, setBottomCollapsed] = useState(false)
+  const [bottomTab, setBottomTab] = useState<'console' | 'inspector'>('console')
 
   // Source hit map (live mode)
   const sourceHitMap = useSourceHitMap()
@@ -233,26 +237,55 @@ export function TracePage({ targetUrl, onStop, sdkMode, sdkConnections }: TraceP
 
       <div
         className={`resize-handle-h${dragging === 'h' ? ' dragging' : ''}`}
-        onMouseDown={consoleCollapsed ? undefined : onHDragStart}
+        onMouseDown={bottomCollapsed ? undefined : onHDragStart}
       />
 
       <div
-        className={`console-section${consoleCollapsed ? ' collapsed' : ''}`}
-        style={consoleCollapsed ? undefined : { height: consoleHeight }}
+        className={`bottom-section${bottomCollapsed ? ' collapsed' : ''}`}
+        style={bottomCollapsed ? undefined : { height: consoleHeight }}
       >
-        <div className="console-section-header" onClick={() => setConsoleCollapsed(!consoleCollapsed)}>
-          <span className={`console-section-chevron${consoleCollapsed ? '' : ' expanded'}`}>&#9654;</span>
-          <span className="console-section-title">Console</span>
-          {consoleEntries.allEntries.length > 0 && (
-            <span className="console-section-badge">{consoleEntries.allEntries.length}</span>
-          )}
+        <div className="bottom-section-header">
+          <button
+            className="bottom-section-collapse"
+            onClick={() => setBottomCollapsed(!bottomCollapsed)}
+            title={bottomCollapsed ? 'Expand' : 'Collapse'}
+          >
+            <span className={`bottom-section-chevron${bottomCollapsed ? '' : ' expanded'}`}>&#9654;</span>
+          </button>
+          <button
+            className={`bottom-tab${bottomTab === 'console' ? ' active' : ''}`}
+            onClick={() => { setBottomTab('console'); setBottomCollapsed(false) }}
+          >
+            Console
+            {consoleEntries.allEntries.length > 0 && (
+              <span className="bottom-tab-badge">{consoleEntries.allEntries.length}</span>
+            )}
+          </button>
+          <button
+            className={`bottom-tab${bottomTab === 'inspector' ? ' active' : ''}`}
+            onClick={() => { setBottomTab('inspector'); setBottomCollapsed(false) }}
+          >
+            Inspector
+            {inspectorEntries.totalCount > 0 && (
+              <span className="bottom-tab-badge">{inspectorEntries.totalCount}</span>
+            )}
+          </button>
         </div>
-        {!consoleCollapsed && (
+        {!bottomCollapsed && bottomTab === 'console' && (
           <ConsolePanel
             entries={consoleEntries.entries}
             filter={consoleEntries.filter}
             onFilterChange={consoleEntries.setFilter}
             onClear={consoleEntries.clear}
+          />
+        )}
+        {!bottomCollapsed && bottomTab === 'inspector' && (
+          <InspectorPanel
+            stateChanges={inspectorEntries.stateChanges}
+            responses={inspectorEntries.responses}
+            onClear={inspectorEntries.clear}
+            focusedEventId={focusedEvent?.id}
+            focusedTraceId={focusedTraceId}
           />
         )}
       </div>

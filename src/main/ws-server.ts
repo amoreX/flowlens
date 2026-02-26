@@ -21,6 +21,18 @@ export function startWsServer(traceEngine: TraceCorrelationEngine): void {
 
         if (msg.type === 'event' && msg.payload?.event) {
           const event = msg.payload.event as CapturedEvent
+
+          // Validate required CapturedEvent fields
+          if (
+            !event.id ||
+            !event.traceId ||
+            !event.type ||
+            typeof event.timestamp !== 'number' ||
+            !event.data
+          ) {
+            return
+          }
+
           traceEngine.ingestEvent(event)
 
           const mainWindow = getMainWindow()
