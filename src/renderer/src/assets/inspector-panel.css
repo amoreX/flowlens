@@ -110,6 +110,10 @@
   to   { opacity: 1; transform: translateY(0); }
 }
 
+.inspector-row.clickable {
+  cursor: pointer;
+}
+
 .inspector-row:hover {
   background: var(--surface-dark-hover);
 }

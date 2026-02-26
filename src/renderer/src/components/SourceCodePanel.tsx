@@ -54,12 +54,7 @@ function translateHitLines<T extends { count: number }>(
 }
 
 export function SourceCodePanel({ hitMap, focusedEvent, focusedTraceEvents }: SourceCodePanelProps) {
-  const focusedHasSource = useMemo(() => {
-    if (!focusedTraceEvents) return false
-    return focusedTraceEvents.some((ev) => parseEventFrames(ev).length > 0)
-  }, [focusedTraceEvents])
-
-  if (focusedEvent && focusedTraceEvents && focusedHasSource) {
+  if (focusedEvent && focusedTraceEvents) {
     return (
       <FocusedSourceView
         event={focusedEvent}
@@ -99,23 +94,10 @@ function LiveSourceView({ hitMap }: { hitMap: SourceHitMap }) {
     })
   }, [currentTraceHits, activeFile, sourceCache])
 
-  if (!currentTraceHits || currentFileOrder.length === 0) {
-    return (
-      <div className="source-panel">
-        <div className="source-panel-status">
-          <div className="source-panel-status-icon">{'{}'}</div>
-          <div className="source-panel-status-text">
-            Source code will appear here as you interact with the target app. Lines will light up in real-time.
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  const currentFileData = activeFile ? currentTraceHits.files.get(activeFile) : null
+  const hasFiles = currentTraceHits && currentFileOrder.length > 0
+  const currentFileData = hasFiles && activeFile ? currentTraceHits.files.get(activeFile) : null
   const currentSource = activeFile ? sourceCache.get(activeFile) : null
 
-  // Translate hit lines from transformed → original using source map
   const hitLines = currentFileData
     ? translateHitLines(currentFileData.lines, currentSource?.lineMap)
     : null
@@ -123,7 +105,7 @@ function LiveSourceView({ hitMap }: { hitMap: SourceHitMap }) {
   return (
     <div className="source-panel">
       <div className="source-file-tabs">
-        {currentFileOrder.map((fp) => {
+        {hasFiles && currentFileOrder.map((fp) => {
           const fileData = currentTraceHits.files.get(fp)!
           return (
             <button
@@ -138,6 +120,14 @@ function LiveSourceView({ hitMap }: { hitMap: SourceHitMap }) {
         })}
       </div>
 
+      {!hasFiles && (
+        <div className="source-panel-status">
+          <div className="source-panel-status-icon">{'{}'}</div>
+          <div className="source-panel-status-text">
+            Source code will appear here as you interact with the target app. Lines will light up in real-time.
+          </div>
+        </div>
+      )}
       {currentSource?.loading && (
         <div className="source-panel-loading">Loading source...</div>
       )}
@@ -148,7 +138,7 @@ function LiveSourceView({ hitMap }: { hitMap: SourceHitMap }) {
         <SourceCodeContent
           content={currentSource.content}
           hitLines={hitLines}
-          seq={currentTraceHits.seq}
+          seq={currentTraceHits!.seq}
           codeAreaRef={codeAreaRef}
         />
       )}

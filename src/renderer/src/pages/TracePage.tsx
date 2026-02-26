@@ -116,6 +116,15 @@ export function TracePage({ targetUrl, onStop, sdkMode, sdkConnections }: TraceP
     }
   }, [traces])
 
+  const handleInspectorNavigate = useCallback((eventId: string, traceId: string) => {
+    const trace = traces.find((t) => t.id === traceId)
+    if (!trace) return
+    const idx = trace.events.findIndex((e) => e.id === eventId)
+    if (idx < 0) return
+    setFocusedTraceId(traceId)
+    setFocusedEventIndex(idx)
+  }, [traces])
+
   const handlePrevEvent = useCallback(() => {
     if (focusedEventIndex > 0) {
       const newIdx = focusedEventIndex - 1
@@ -286,6 +295,7 @@ export function TracePage({ targetUrl, onStop, sdkMode, sdkConnections }: TraceP
             onClear={inspectorEntries.clear}
             focusedEventId={focusedEvent?.id}
             focusedTraceId={focusedTraceId}
+            onNavigate={handleInspectorNavigate}
           />
         )}
       </div>

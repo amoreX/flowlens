@@ -10,6 +10,7 @@ interface InspectorPanelProps {
   onClear: () => void
   focusedEventId?: string | null
   focusedTraceId?: string | null
+  onNavigate?: (eventId: string, traceId: string) => void
 }
 
 function formatTime(ts: number): string {
@@ -51,7 +52,7 @@ function ValueDisplay({ label, value }: { label: string; value: string }) {
       <span className="inspector-value-label">{label}</span>
       <code className={`inspector-value${expanded ? ' expanded' : ''}`}>{display}</code>
       {isLong && (
-        <button className="inspector-expand-btn" onClick={() => setExpanded((v) => !v)}>
+        <button className="inspector-expand-btn" onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v) }}>
           {expanded ? 'less' : 'more'}
         </button>
       )}
@@ -59,10 +60,14 @@ function ValueDisplay({ label, value }: { label: string; value: string }) {
   )
 }
 
-function StateChangeRow({ entry, focused, inTrace }: { entry: StateChangeEntry; focused: boolean; inTrace: boolean }) {
+function StateChangeRow({ entry, focused, inTrace, onNavigate }: { entry: StateChangeEntry; focused: boolean; inTrace: boolean; onNavigate?: (eventId: string, traceId: string) => void }) {
   const cls = focused ? ' focused' : inTrace ? ' in-trace' : ''
   return (
-    <div className={`inspector-row${cls}`} data-entry-id={entry.id}>
+    <div
+      className={`inspector-row clickable${cls}`}
+      data-entry-id={entry.id}
+      onClick={() => onNavigate?.(entry.id, entry.traceId)}
+    >
       <span className="inspector-time">{formatTime(entry.timestamp)}</span>
       <span className="inspector-component-badge">{entry.component}</span>
       <span className="inspector-state-flow">
@@ -74,12 +79,16 @@ function StateChangeRow({ entry, focused, inTrace }: { entry: StateChangeEntry; 
   )
 }
 
-function ResponseRow({ entry, focused, inTrace }: { entry: ResponseEntry; focused: boolean; inTrace: boolean }) {
+function ResponseRow({ entry, focused, inTrace, onNavigate }: { entry: ResponseEntry; focused: boolean; inTrace: boolean; onNavigate?: (eventId: string, traceId: string) => void }) {
   const [bodyOpen, setBodyOpen] = useState(false)
   const cls = focused ? ' focused' : inTrace ? ' in-trace' : ''
 
   return (
-    <div className={`inspector-row inspector-response-row${cls}`} data-entry-id={entry.id}>
+    <div
+      className={`inspector-row inspector-response-row clickable${cls}`}
+      data-entry-id={entry.id}
+      onClick={() => onNavigate?.(entry.id, entry.traceId)}
+    >
       <div className="inspector-response-header">
         <span className="inspector-time">{formatTime(entry.timestamp)}</span>
         <span className={`inspector-status-badge ${statusClass(entry.status)}`}>
@@ -91,7 +100,7 @@ function ResponseRow({ entry, focused, inTrace }: { entry: ResponseEntry; focuse
         {entry.bodyPreview && (
           <button
             className="inspector-body-toggle"
-            onClick={() => setBodyOpen((v) => !v)}
+            onClick={(e) => { e.stopPropagation(); setBodyOpen((v) => !v) }}
           >
             {bodyOpen ? 'hide body' : 'show body'}
           </button>
@@ -104,7 +113,7 @@ function ResponseRow({ entry, focused, inTrace }: { entry: ResponseEntry; focuse
   )
 }
 
-export function InspectorPanel({ stateChanges, responses, onClear, focusedEventId, focusedTraceId }: InspectorPanelProps) {
+export function InspectorPanel({ stateChanges, responses, onClear, focusedEventId, focusedTraceId, onNavigate }: InspectorPanelProps) {
   const [tab, setTab] = useState<InspectorTab>('state')
   const listRef = useRef<HTMLDivElement>(null)
   const [autoScroll, setAutoScroll] = useState(true)
@@ -199,6 +208,7 @@ export function InspectorPanel({ stateChanges, responses, onClear, focusedEventI
                   entry={e}
                   focused={e.id === focusedEventId}
                   inTrace={!!focusedTraceId && e.traceId === focusedTraceId}
+                  onNavigate={onNavigate}
                 />
               ))
             : responses.map((e) => (
@@ -207,6 +217,7 @@ export function InspectorPanel({ stateChanges, responses, onClear, focusedEventI
                   entry={e}
                   focused={e.id === focusedEventId}
                   inTrace={!!focusedTraceId && e.traceId === focusedTraceId}
+                  onNavigate={onNavigate}
                 />
               ))}
         </div>
