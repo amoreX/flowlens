@@ -214,6 +214,65 @@
   transform: translateY(-1px);
 }
 
+/* OR divider */
+.onboarding-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  animation: fadeUp 450ms 280ms ease both;
+}
+
+.onboarding-divider-line {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.onboarding-divider-text {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-tertiary);
+  letter-spacing: 0.08em;
+}
+
+/* SDK Mode button */
+.sdk-mode-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-6);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--accent);
+  cursor: pointer;
+  transition: all 150ms ease;
+  animation: fadeUp 450ms 300ms ease both;
+}
+
+.sdk-mode-btn:hover {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+  transform: translateY(-1px);
+}
+
+.sdk-mode-btn:active {
+  transform: translateY(0);
+}
+
+.sdk-mode-btn-sub {
+  font-size: var(--text-xs);
+  font-weight: 400;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+}
+
 /* Feature indicators */
 .onboarding-features {
   display: flex;

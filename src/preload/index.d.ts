@@ -10,6 +10,10 @@ interface FlowLensAPI {
   setSplitRatio: (ratio: number) => Promise<{ success: boolean }>
   onTraceEvent: (callback: (event: CapturedEvent) => void) => () => void
   onTargetLoaded: (callback: (url: string) => void) => () => void
+  startSdkMode: () => Promise<{ success: boolean; connectedClients: number }>
+  stopSdkMode: () => Promise<{ success: boolean }>
+  getSdkConnectionCount: () => Promise<number>
+  onSdkConnectionCount: (callback: (count: number) => void) => () => void
 }
 
 declare global {

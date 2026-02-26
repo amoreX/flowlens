@@ -21,6 +21,7 @@ function getInstrumentationScript(): string {
   }
 
   let currentTraceId = uid();
+  let eventSeq = 0;
 
   function send(type, data, traceId, extraStack) {
     var stack = null;
@@ -33,6 +34,7 @@ function getInstrumentationScript(): string {
       traceId: traceId || currentTraceId,
       type: type,
       timestamp: Date.now(),
+      seq: ++eventSeq,
       url: location.href,
       data: data,
       sourceStack: stack
@@ -116,7 +118,7 @@ function getInstrumentationScript(): string {
 
   // State change detection — walks the React fiber tree after DOM events
   // to find useState hooks whose value changed, emitting state-change events
-  function findFiberRoot(element) {
+  function getFiberRootFromElement(element) {
     if (!element) return null;
     var el = element;
     while (el) {
@@ -124,14 +126,27 @@ function getInstrumentationScript(): string {
       for (var i = 0; i < keys.length; i++) {
         if (keys[i].indexOf('__reactFiber$') === 0) {
           var fiber = el[keys[i]];
-          // Walk up to the root
           var root = fiber;
-          while (root.return) root = root.return;
-          if (root.stateNode && root.stateNode.current) return root.stateNode;
-          return null;
+          while (root && root.return) root = root.return;
+          if (root && root.stateNode && root.stateNode.current) return root.stateNode;
         }
       }
       el = el.parentElement;
+    }
+    return null;
+  }
+
+  function findFiberRoot(element) {
+    var root = getFiberRootFromElement(element);
+    if (root) return root;
+
+    // Fallback: find first React-owned element in document.
+    var body = document.body;
+    if (!body || !body.querySelectorAll) return null;
+    var nodes = body.querySelectorAll('*');
+    for (var i = 0; i < nodes.length; i++) {
+      root = getFiberRootFromElement(nodes[i]);
+      if (root) return root;
     }
     return null;
   }
@@ -156,6 +171,18 @@ function getInstrumentationScript(): string {
       return '    at ' + name + ' (' + fileName + ':' + f._debugSource.lineNumber + ':' + (f._debugSource.columnNumber || 1) + ')';
     }
     return '';
+  }
+
+  var emittedStateSignatures = {};
+
+  function scheduleStateDetection(traceId, element) {
+    var target = element || document.body;
+    var delays = [0, 40, 140];
+    for (var i = 0; i < delays.length; i++) {
+      (function(delay) {
+        setTimeout(function() { detectStateChanges(target, traceId); }, delay);
+      })(delays[i]);
+    }
   }
 
   function detectStateChanges(element, traceId) {
@@ -193,6 +220,14 @@ function getInstrumentationScript(): string {
                   var prevStr, curStr;
                   try { prevStr = JSON.stringify(prevVal); } catch(e) { prevStr = String(prevVal); }
                   try { curStr = JSON.stringify(curVal); } catch(e) { curStr = String(curVal); }
+
+                  var emittedKey = traceId + ':' + key;
+                  var signature = prevStr + '->' + curStr;
+                  if (emittedStateSignatures[emittedKey] === signature) {
+                    // Skip duplicate emission when the same change is detected repeatedly.
+                    continue;
+                  }
+                  emittedStateSignatures[emittedKey] = signature;
 
                   send('state-change', {
                     component: componentName,
@@ -242,7 +277,7 @@ function getInstrumentationScript(): string {
 
       // After React processes the event and re-renders, detect state changes
       if (evtType === 'click' || evtType === 'submit' || evtType === 'change' || evtType === 'input') {
-        setTimeout(function() { detectStateChanges(el, traceId); }, 0);
+        scheduleStateDetection(traceId, el);
       }
     }, true);
   });
@@ -283,6 +318,7 @@ function getInstrumentationScript(): string {
         statusText: res.statusText,
         duration: Date.now() - start
       }, traceId);
+      scheduleStateDetection(traceId, document.body);
       return res;
     }).catch(function(err) {
       send('network-error', {
@@ -292,6 +328,7 @@ function getInstrumentationScript(): string {
         error: err.message || String(err),
         duration: Date.now() - start
       }, traceId);
+      scheduleStateDetection(traceId, document.body);
       throw err;
     });
   };
@@ -331,6 +368,7 @@ function getInstrumentationScript(): string {
         statusText: xhr.statusText,
         duration: Date.now() - start
       }, xhr.__fl_traceId);
+      scheduleStateDetection(xhr.__fl_traceId, document.body);
     });
 
     xhr.addEventListener('error', function() {
@@ -341,6 +379,7 @@ function getInstrumentationScript(): string {
         error: 'XHR error',
         duration: Date.now() - start
       }, xhr.__fl_traceId);
+      scheduleStateDetection(xhr.__fl_traceId, document.body);
     });
 
     return origSend.apply(this, arguments);
@@ -356,6 +395,7 @@ function getInstrumentationScript(): string {
         catch(e) { return String(a); }
       });
       send('console', { level: level, args: args });
+      scheduleStateDetection(currentTraceId, document.body);
       return orig.apply(console, arguments);
     };
   });

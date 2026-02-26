@@ -2,6 +2,20 @@ import type { CapturedEvent, TraceData } from '../shared/types'
 
 const MAX_TRACES = 500
 
+function compareEvents(a: CapturedEvent, b: CapturedEvent): number {
+  if (a.timestamp !== b.timestamp) return a.timestamp - b.timestamp
+  return 0
+}
+
+function insertEventSorted(events: CapturedEvent[], event: CapturedEvent): void {
+  const idx = events.findIndex((e) => compareEvents(event, e) < 0)
+  if (idx === -1) {
+    events.push(event)
+  } else {
+    events.splice(idx, 0, event)
+  }
+}
+
 export class TraceCorrelationEngine {
   private traces = new Map<string, TraceData>()
   private insertionOrder: string[] = []
@@ -10,8 +24,15 @@ export class TraceCorrelationEngine {
     const existing = this.traces.get(event.traceId)
 
     if (existing) {
-      existing.events.push(event)
+      insertEventSorted(existing.events, event)
+      existing.startTime = Math.min(existing.startTime, event.timestamp)
       existing.endTime = Math.max(existing.endTime, event.timestamp)
+      if (compareEvents(event, existing.rootEvent) < 0) {
+        existing.rootEvent = event
+      }
+      if (!existing.url && event.url) {
+        existing.url = event.url
+      }
       return existing
     }
 

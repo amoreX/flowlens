@@ -15,6 +15,7 @@
   flex-shrink: 0;
   overflow-x: auto;
   scrollbar-width: none;
+  min-height: 28px;
 }
 
 .source-file-tabs::-webkit-scrollbar {
@@ -277,23 +278,60 @@
   text-align: center;
 }
 
-/* ── Call Stack panel ── */
-.call-stack-panel {
+/* ── Call Stack (bottom panel) ── */
+.call-stack-bottom {
   flex-shrink: 0;
-  border-bottom: 1px solid var(--border);
+  border-top: 1px solid var(--border);
   background: var(--bg-elevated);
-  max-height: 120px;
+  max-height: 140px;
   overflow-y: auto;
 }
 
-.call-stack-title {
+.call-stack-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-1) var(--space-3);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
   font-family: var(--font-sans);
+  transition: background var(--transition-fast);
+}
+
+.call-stack-toggle:hover {
+  background: var(--bg-hover);
+}
+
+.call-stack-toggle-icon {
+  font-size: 0.5rem;
+  color: var(--text-tertiary);
+  width: 10px;
+  text-align: center;
+}
+
+.call-stack-toggle-label {
   font-size: var(--text-xs);
   font-weight: 600;
   color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  padding: var(--space-2) var(--space-3) var(--space-1);
+}
+
+.call-stack-count {
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: var(--text-tertiary);
+  background: var(--surface-dark);
+  border-radius: var(--radius-full);
+  padding: 0 5px;
+  min-width: 16px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .call-stack-frames {
@@ -305,7 +343,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-1) var(--space-3);
+  padding: var(--space-1) var(--space-3) var(--space-1) calc(var(--space-3) + 10px);
   background: none;
   border: none;
   border-left: 2px solid transparent;
@@ -329,7 +367,7 @@
   color: var(--text-primary);
   font-weight: 600;
   flex-shrink: 0;
-  max-width: 140px;
+  max-width: 160px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

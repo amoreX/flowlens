@@ -70,6 +70,8 @@ export function parseAllUserFrames(stack: string | undefined): SourceLocation[] 
 
 function isInstrumentationFrame(filePath: string, _functionName?: string): boolean {
   if (filePath.includes('__flowlens_instrumentation__')) return true
+  if (filePath.includes('__flowlens_sdk__')) return true
+  if (filePath.includes('@flowlens/web')) return true
 
   if (/^(devtools|chrome-extension|chrome):\/\//.test(filePath)) return true
 

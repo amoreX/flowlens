@@ -99,6 +99,8 @@ export interface CapturedEvent {
   traceId: string
   type: EventType
   timestamp: number
+  /** Per-process emission sequence used to order same-ms events deterministically */
+  seq?: number
   url?: string
   data: EventData
   sourceStack?: string

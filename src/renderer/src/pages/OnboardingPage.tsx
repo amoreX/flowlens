@@ -3,6 +3,7 @@ import '../assets/onboarding.css'
 
 interface OnboardingPageProps {
   onLaunch: (url: string) => void
+  onSdkMode: () => void
 }
 
 const EXAMPLE_URLS = [
@@ -11,7 +12,7 @@ const EXAMPLE_URLS = [
   'https://jsonplaceholder.typicode.com'
 ]
 
-export function OnboardingPage({ onLaunch }: OnboardingPageProps) {
+export function OnboardingPage({ onLaunch, onSdkMode }: OnboardingPageProps) {
   return (
     <div className="onboarding">
       <div className="onboarding-grid" />
@@ -37,6 +38,18 @@ export function OnboardingPage({ onLaunch }: OnboardingPageProps) {
             </button>
           ))}
         </div>
+
+        <div className="onboarding-divider">
+          <span className="onboarding-divider-line" />
+          <span className="onboarding-divider-text">OR</span>
+          <span className="onboarding-divider-line" />
+        </div>
+
+        <button className="sdk-mode-btn no-drag" onClick={onSdkMode}>
+          SDK Mode
+          <span className="sdk-mode-btn-sub">Connect your app via @flowlens/web</span>
+        </button>
+
         <div className="onboarding-features">
           <div className="onboarding-feature">
             <span className="feature-dot" style={{ background: 'var(--accent)' }} />

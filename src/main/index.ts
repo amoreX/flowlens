@@ -4,6 +4,7 @@ import { createMainWindow } from './window-manager'
 import { registerIpcHandlers } from './ipc-handlers'
 import { TraceCorrelationEngine } from './trace-correlation-engine'
 import { startSpanCollector, stopSpanCollector } from './span-collector'
+import { startWsServer, stopWsServer } from './ws-server'
 
 const traceEngine = new TraceCorrelationEngine()
 
@@ -16,6 +17,7 @@ app.whenReady().then(() => {
 
   registerIpcHandlers(traceEngine)
   startSpanCollector(traceEngine)
+  startWsServer(traceEngine)
   createMainWindow()
 
   app.on('activate', () => {
@@ -28,6 +30,7 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   stopSpanCollector()
+  stopWsServer()
   if (process.platform !== 'darwin') {
     app.quit()
   }

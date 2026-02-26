@@ -2,13 +2,14 @@ import { useState, useCallback, useEffect } from 'react'
 import { OnboardingPage } from './pages/OnboardingPage'
 import { TracePage } from './pages/TracePage'
 
-type AppMode = 'onboarding' | 'trace'
+type AppMode = 'onboarding' | 'trace' | 'sdk-listening'
 
 export default function App() {
   const [mode, setMode] = useState<AppMode>('onboarding')
   const [targetUrl, setTargetUrl] = useState('')
   const [splitRatio, setSplitRatio] = useState(0.55)
   const [draggingSplit, setDraggingSplit] = useState(false)
+  const [sdkConnections, setSdkConnections] = useState(0)
 
   const handleLaunch = useCallback(async (url: string) => {
     await window.flowlens.loadTargetUrl(url)
@@ -20,6 +21,26 @@ export default function App() {
     await window.flowlens.unloadTarget()
     setTargetUrl('')
     setMode('onboarding')
+  }, [])
+
+  const handleSdkMode = useCallback(async () => {
+    const result = await window.flowlens.startSdkMode()
+    setSdkConnections(result.connectedClients)
+    setMode('sdk-listening')
+  }, [])
+
+  const handleSdkStop = useCallback(async () => {
+    await window.flowlens.stopSdkMode()
+    setSdkConnections(0)
+    setMode('onboarding')
+  }, [])
+
+  // Listen for SDK connection count changes
+  useEffect(() => {
+    const unsub = window.flowlens.onSdkConnectionCount((count: number) => {
+      setSdkConnections(count)
+    })
+    return unsub
   }, [])
 
   const onSplitDragStart = useCallback((e: React.MouseEvent) => {
@@ -53,6 +74,7 @@ export default function App() {
     }
   }, [draggingSplit])
 
+  // In embedded mode, offset for the target view; in SDK mode, full width
   const traceStyle = mode === 'trace'
     ? { width: `${(1 - splitRatio) * 100}%`, marginLeft: `${splitRatio * 100}%` }
     : undefined
@@ -67,9 +89,14 @@ export default function App() {
         />
       )}
       {mode === 'onboarding' ? (
-        <OnboardingPage onLaunch={handleLaunch} />
+        <OnboardingPage onLaunch={handleLaunch} onSdkMode={handleSdkMode} />
       ) : (
-        <TracePage targetUrl={targetUrl} onStop={handleStop} />
+        <TracePage
+          targetUrl={mode === 'sdk-listening' ? '' : targetUrl}
+          onStop={mode === 'sdk-listening' ? handleSdkStop : handleStop}
+          sdkMode={mode === 'sdk-listening'}
+          sdkConnections={sdkConnections}
+        />
       )}
     </div>
   )

@@ -9,8 +9,8 @@ FlowLens runs your target site in an embedded browser alongside a debugging UI i
 ## Features
 
 - **Automatic tracing** — click/submit starts a new trace; subsequent network calls, console output, errors, and state changes are grouped under it
-- **Backend span collection** — built-in HTTP collector on port 9229 receives backend spans (split into request/handler/response phases) correlated by trace ID
-- **React state tracking** — detects useState/useReducer changes after interactions, showing prev/current values per component
+- **Backend span collection** — built-in HTTP collector on port 9229 receives backend spans (split into request/handler/response phases with per-phase source stacks) correlated by trace ID
+- **React state tracking** — detects useState/useReducer changes after any event type (DOM, network, console), checking at multiple delays to catch async re-renders, with deduplication
 - **Source code viewer** — see exactly which line of your code triggered each event, with full call stack navigation
 - **Source map extraction** — automatically extracts original source from inline source maps served by dev servers; also reads backend source directly from disk via filesystem paths and `file://` URLs
 - **Dual-mode highlighting** — live mode shows real-time hit accumulation (orange); focus mode shows a selected event's execution path (amber)
@@ -27,7 +27,7 @@ npm run dev
 
 This starts FlowLens in development mode with hot reload. Enter a URL (e.g. `http://localhost:3099` if you have a local dev server running) and start interacting with the page. Source code is loaded from your dev server — original source is automatically extracted from inline source maps when available.
 
-To collect backend spans, POST them to `http://localhost:9229` with a JSON body containing `traceId`, `route`, `method`, `statusCode`, `duration`, `serviceName`, and `timestamp`. Optionally include `sourceStack` (V8 stack string), or `sourceFile` + `sourceLine` for source mapping.
+To collect backend spans, POST them to `http://localhost:9229` with a JSON body containing `traceId`, `route`, `method`, `statusCode`, `duration`, `serviceName`, and `timestamp`. Optionally include `sourceStack` (V8 stack string), or `sourceFile` + `sourceLine` for source mapping. For per-phase source stacks, use `phaseStacks: { request, handler, response }` or individual `requestStack`/`handlerStack`/`responseStack` fields.
 
 ## Build
 

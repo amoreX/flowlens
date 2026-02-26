@@ -6,6 +6,7 @@ import { getMainWindow } from './window-manager'
 let server: http.Server | null = null
 
 const COLLECTOR_PORT = 9229
+let backendSeq = 0
 
 function createEventId(): string {
   return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 9)
@@ -39,10 +40,62 @@ function makeBackendEvent(args: {
     traceId: args.traceId,
     type: 'backend-span',
     timestamp: args.timestamp,
+    seq: ++backendSeq,
     url: `${args.serviceName}:${args.method} ${args.route}`,
     data,
     ...(args.sourceStack ? { sourceStack: args.sourceStack } : {})
   }
+}
+
+interface PhaseStacks {
+  request?: string
+  handler?: string
+  response?: string
+}
+
+function getPhaseStacks(span: Record<string, unknown>, fallbackStack?: string): PhaseStacks {
+  const out: PhaseStacks = {}
+
+  const phaseStacks = span.phaseStacks as Record<string, unknown> | undefined
+  if (phaseStacks && typeof phaseStacks === 'object') {
+    if (typeof phaseStacks.request === 'string' && phaseStacks.request.length > 0) {
+      out.request = phaseStacks.request
+    }
+    if (typeof phaseStacks.handler === 'string' && phaseStacks.handler.length > 0) {
+      out.handler = phaseStacks.handler
+    }
+    if (typeof phaseStacks.response === 'string' && phaseStacks.response.length > 0) {
+      out.response = phaseStacks.response
+    }
+  }
+
+  if (!out.request && typeof span.requestStack === 'string' && span.requestStack.length > 0) {
+    out.request = span.requestStack
+  }
+  if (!out.handler && typeof span.handlerStack === 'string' && span.handlerStack.length > 0) {
+    out.handler = span.handlerStack
+  }
+  if (!out.response && typeof span.responseStack === 'string' && span.responseStack.length > 0) {
+    out.response = span.responseStack
+  }
+
+  // Fallback to the generic source stack for any missing phases
+  if (fallbackStack) {
+    if (!out.request) out.request = fallbackStack
+    if (!out.handler) out.handler = fallbackStack
+    if (!out.response) out.response = fallbackStack
+  }
+
+  return out
+}
+
+function normalizeHandlerStack(stack: string | undefined): string | undefined {
+  if (!stack) return stack
+  const lines = stack.split(/\r?\n/)
+  if (lines.length <= 1) return stack
+  // Drop wrapper frame so APP highlights route definition/handler code first.
+  const filtered = [lines[0], ...lines.slice(1).filter((l) => !/\bat traced\b/.test(l))]
+  return filtered.join('\n')
 }
 
 export function startSpanCollector(traceEngine: TraceCorrelationEngine): void {
@@ -108,6 +161,9 @@ export function startSpanCollector(traceEngine: TraceCorrelationEngine): void {
           startTimestamp + Math.max(1, Math.floor(duration / 2))
         )
 
+        const phaseStacks = getPhaseStacks(span, sourceStack)
+        phaseStacks.handler = normalizeHandlerStack(phaseStacks.handler)
+
         const events: CapturedEvent[] = [
           makeBackendEvent({
             traceId,
@@ -118,7 +174,8 @@ export function startSpanCollector(traceEngine: TraceCorrelationEngine): void {
             duration,
             serviceName,
             phase: 'request',
-            sourceStack
+            step: 'ingress',
+            sourceStack: phaseStacks.request
           }),
           makeBackendEvent({
             traceId,
@@ -130,7 +187,7 @@ export function startSpanCollector(traceEngine: TraceCorrelationEngine): void {
             serviceName,
             phase: 'handler',
             step: 'route-handler',
-            sourceStack
+            sourceStack: phaseStacks.handler
           }),
           makeBackendEvent({
             traceId,
@@ -141,7 +198,8 @@ export function startSpanCollector(traceEngine: TraceCorrelationEngine): void {
             duration,
             serviceName,
             phase: 'response',
-            sourceStack
+            step: 'egress',
+            sourceStack: phaseStacks.response
           })
         ]
 

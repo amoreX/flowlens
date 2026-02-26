@@ -15,9 +15,11 @@ import '../assets/timeline.css'
 interface TracePageProps {
   targetUrl: string
   onStop: () => void
+  sdkMode?: boolean
+  sdkConnections?: number
 }
 
-export function TracePage({ targetUrl, onStop }: TracePageProps) {
+export function TracePage({ targetUrl, onStop, sdkMode, sdkConnections }: TracePageProps) {
   const { traces, eventCount, clearTraces } = useTraceEvents()
   const [selectedEvent, setSelectedEvent] = useState<CapturedEvent | null>(null)
 
@@ -191,7 +193,7 @@ export function TracePage({ targetUrl, onStop }: TracePageProps) {
 
   return (
     <div className="trace-page" ref={tracePageRef}>
-      <StatusBar url={targetUrl} eventCount={eventCount} onStop={onStop} />
+      <StatusBar url={targetUrl} eventCount={eventCount} onStop={onStop} sdkMode={sdkMode} sdkConnections={sdkConnections} />
 
       <div className="main-content">
         <div className="traces-column" style={{ width: tracesWidth }}>

@@ -234,6 +234,7 @@ function FocusedSourceView({ event, traceEvents, sourceCache, fetchSourceIfNeede
   const [activeFrameIndex, setActiveFrameIndex] = useState(0)
   const [fileOverride, setFileOverride] = useState<string | null>(null)
   const codeAreaRef = useRef<HTMLDivElement>(null)
+  const [callStackOpen, setCallStackOpen] = useState(true)
 
   const [trackedEventId, setTrackedEventId] = useState(event.id)
   if (event.id !== trackedEventId) {
@@ -248,6 +249,27 @@ function FocusedSourceView({ event, traceEvents, sourceCache, fetchSourceIfNeede
     () => computeTraceHighlights(traceEvents, event.id),
     [traceEvents, event.id]
   )
+
+  // Build a stable, deduplicated file tab list from both highlights and current event frames
+  const tabFiles = useMemo(() => {
+    const seen = new Set<string>()
+    const result: { filePath: string; displayPath: string }[] = []
+
+    for (const fp of highlights.fileOrder) {
+      if (!seen.has(fp)) {
+        seen.add(fp)
+        const fd = highlights.files.get(fp)
+        result.push({ filePath: fp, displayPath: fd?.displayPath ?? extractDisplayPath(fp) })
+      }
+    }
+    for (const frame of frames) {
+      if (!seen.has(frame.filePath)) {
+        seen.add(frame.filePath)
+        result.push({ filePath: frame.filePath, displayPath: extractDisplayPath(frame.filePath) })
+      }
+    }
+    return result
+  }, [highlights, frames])
 
   const activeFrame = frames[effectiveFrameIndex] as SourceLocation | undefined
 
@@ -285,7 +307,7 @@ function FocusedSourceView({ event, traceEvents, sourceCache, fetchSourceIfNeede
     })
   }, [activeFrame, sourceCache])
 
-  if (frames.length === 0 && highlights.fileOrder.length === 0) {
+  if (tabFiles.length === 0) {
     return (
       <div className="source-panel">
         <div className="source-panel-status">
@@ -302,7 +324,6 @@ function FocusedSourceView({ event, traceEvents, sourceCache, fetchSourceIfNeede
   const fileHighlights = viewingFile ? highlights.files.get(viewingFile) : null
   const lineMap = currentSource?.lineMap
 
-  // Translate highlight lines and focus line from transformed → original
   const translatedTraceLines = fileHighlights
     ? translateHitLines(fileHighlights.lines, lineMap)
     : null
@@ -311,55 +332,25 @@ function FocusedSourceView({ event, traceEvents, sourceCache, fetchSourceIfNeede
   return (
     <div className="source-panel">
       <div className="source-file-tabs">
-        {highlights.fileOrder.map((fp) => {
-          const fd = highlights.files.get(fp)!
-          return (
-            <button
-              key={fp}
-              className={`source-file-tab${fp === viewingFile ? ' active' : ''}`}
-              onClick={() => {
-                const idx = frames.findIndex((f) => f.filePath === fp)
-                if (idx >= 0) {
-                  setActiveFrameIndex(idx)
-                  setFileOverride(null)
-                } else {
-                  setFileOverride(fp)
-                }
-              }}
-              title={fp}
-            >
-              {fd.displayPath}
-            </button>
-          )
-        })}
+        {tabFiles.map(({ filePath: fp, displayPath }) => (
+          <button
+            key={fp}
+            className={`source-file-tab${fp === viewingFile ? ' active' : ''}`}
+            onClick={() => {
+              const idx = frames.findIndex((f) => f.filePath === fp)
+              if (idx >= 0) {
+                setActiveFrameIndex(idx)
+                setFileOverride(null)
+              } else {
+                setFileOverride(fp)
+              }
+            }}
+            title={fp}
+          >
+            {displayPath}
+          </button>
+        ))}
       </div>
-
-      {frames.length > 0 && (
-        <div className="call-stack-panel">
-          <div className="call-stack-title">Call Stack</div>
-          <div className="call-stack-frames">
-            {frames.map((frame, i) => {
-              const frameLM = sourceCache.get(frame.filePath)?.lineMap
-              const displayLine = mapLine(frame.line, frameLM)
-              return (
-                <button
-                  key={i}
-                  className={`call-stack-frame${i === effectiveFrameIndex ? ' active' : ''}`}
-                  onClick={() => {
-                    setActiveFrameIndex(i)
-                    setFileOverride(null)
-                  }}
-                >
-                  <span className="call-stack-fn">{frame.functionName || '(anonymous)'}</span>
-                  <span className="call-stack-loc">
-                    {extractDisplayPath(frame.filePath)}:{displayLine}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      )}
 
       {currentSource?.loading && <div className="source-panel-loading">Loading source...</div>}
       {currentSource?.error && <div className="source-panel-error">{currentSource.error}</div>}
@@ -371,6 +362,42 @@ function FocusedSourceView({ event, traceEvents, sourceCache, fetchSourceIfNeede
           eventId={event.id}
           codeAreaRef={codeAreaRef}
         />
+      )}
+
+      {frames.length > 0 && (
+        <div className="call-stack-bottom">
+          <button
+            className="call-stack-toggle"
+            onClick={() => setCallStackOpen((v) => !v)}
+          >
+            <span className="call-stack-toggle-icon">{callStackOpen ? '\u25BC' : '\u25B6'}</span>
+            <span className="call-stack-toggle-label">Call Stack</span>
+            <span className="call-stack-count">{frames.length}</span>
+          </button>
+          {callStackOpen && (
+            <div className="call-stack-frames">
+              {frames.map((frame, i) => {
+                const frameLM = sourceCache.get(frame.filePath)?.lineMap
+                const displayLine = mapLine(frame.line, frameLM)
+                return (
+                  <button
+                    key={i}
+                    className={`call-stack-frame${i === effectiveFrameIndex ? ' active' : ''}`}
+                    onClick={() => {
+                      setActiveFrameIndex(i)
+                      setFileOverride(null)
+                    }}
+                  >
+                    <span className="call-stack-fn">{frame.functionName || '(anonymous)'}</span>
+                    <span className="call-stack-loc">
+                      {extractDisplayPath(frame.filePath)}:{displayLine}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </div>
       )}
     </div>
   )

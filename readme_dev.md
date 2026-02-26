@@ -96,9 +96,9 @@ FlowLens runs three Electron processes that communicate via IPC:
         ↓
 6. User interacts with target page (click, fetch, console.log, etc.)
         ↓
-7. IIFE captures event + new Error().stack, calls bridge.sendEvent(event)
+7. IIFE captures event + new Error().stack (with seq counter), calls bridge.sendEvent(event)
    ├── Fetch/XHR requests include X-FlowLens-Trace-Id header
-   └── After DOM events, setTimeout(0) detects React state changes
+   └── After all event types, scheduleStateDetection() checks at [0, 40, 140]ms for React state changes
         ↓  IPC send 'instrumentation:event'
 8. Main process receives event (also receives backend spans via HTTP :9229)
    ├── traceEngine.ingestEvent(event)  →  stores in Map<traceId, TraceData>
@@ -123,9 +123,9 @@ The instrumentation script is an inline IIFE string in `target-view.ts`, injecte
 | Target | Events emitted | Trace ID behavior |
 |--------|---------------|-------------------|
 | DOM events (click, input, submit, change, focus, blur) | `dom` + `state-change` (after re-render) | click/submit start a **new trace**; others use current |
-| `window.fetch` | `network-request`, `network-response`, `network-error` | Uses current trace ID; injects `X-FlowLens-Trace-Id` header |
-| `XMLHttpRequest` (open/send) | `network-request`, `network-response`, `network-error` | Uses current trace ID; injects `X-FlowLens-Trace-Id` header |
-| `console.*` (log, warn, error, info, debug) | `console` | Uses current trace ID |
+| `window.fetch` | `network-request`, `network-response`/`network-error` + `state-change` | Uses current trace ID; injects `X-FlowLens-Trace-Id` header |
+| `XMLHttpRequest` (open/send) | `network-request`, `network-response`/`network-error` + `state-change` | Uses current trace ID; injects `X-FlowLens-Trace-Id` header |
+| `console.*` (log, warn, error, info, debug) | `console` + `state-change` | Uses current trace ID |
 | `window.onerror` + `unhandledrejection` | `error` | Uses current trace ID |
 
 ### How trace IDs work
@@ -147,7 +147,9 @@ Collected frames are appended to the event's `sourceStack`, giving the renderer 
 
 ### React state change detection
 
-After click, submit, change, and input events, the IIFE schedules a `setTimeout(0)` callback that runs after React has re-rendered. It walks the fiber tree comparing `fiber.memoizedState` against `fiber.alternate.memoizedState` for every function component with hooks. When a useState/useReducer value has changed (detected via `Object.is`), it emits a `state-change` event with the component name, hook index, previous value, and current value.
+After **all event types** (DOM events, fetch/XHR response/error, console.*), the IIFE calls `scheduleStateDetection()` which fires checks at multiple delays `[0, 40, 140]ms` to catch both synchronous and async React re-renders. Each check walks the fiber tree comparing `fiber.memoizedState` against `fiber.alternate.memoizedState` for every function component with hooks. When a useState/useReducer value has changed (detected via `Object.is`), it emits a `state-change` event with the component name, hook index, previous value, and current value. An `emittedStateSignatures` map prevents duplicate emissions across the multiple delay callbacks.
+
+The fiber root is found via `getFiberRootFromElement()`, which first checks the target element for a `__reactFiber$` key, then falls back to scanning `document.body`'s immediate children.
 
 ### Trace header injection
 
@@ -162,6 +164,7 @@ All outgoing fetch and XHR requests have an `X-FlowLens-Trace-Id` header injecte
   type: EventType      // 'dom' | 'network-request' | 'network-response' | 'console'
                        // | 'error' | 'navigation' | 'backend-span' | 'state-change'
   timestamp: number    // Date.now()
+  seq?: number         // per-process emission sequence for deterministic same-ms ordering
   url: string          // page URL (or service:method route for backend spans)
   data: EventData      // type-specific payload
   sourceStack: string  // V8 stack trace (browser or Node.js format)
@@ -175,7 +178,7 @@ All outgoing fetch and XHR requests have an `X-FlowLens-Trace-Id` header injecte
 `src/main/trace-correlation-engine.ts` — simple in-memory store.
 
 - **Storage:** `Map<traceId, TraceData>` + insertion order array
-- **ingestEvent(event):** creates a new TraceData on first event for a traceId, appends subsequent events, updates endTime
+- **ingestEvent(event):** creates a new TraceData on first event for a traceId; subsequent events are inserted in sorted order via `insertEventSorted()` (by timestamp using `compareEvents()`). On each insert, updates `startTime` (min), `endTime` (max), `rootEvent` (earliest event), and `url` (from first event that has one)
 - **Max traces:** 500 (oldest evicted by insertion order)
 - **getAllTraces():** returns all traces sorted by startTime descending (newest first)
 - **clear():** wipes everything
@@ -202,12 +205,17 @@ A `TraceData` looks like:
 - Listens on port **9229** for POST requests containing backend span data
 - CORS enabled so any backend can POST spans
 - The `traceId` should match the `X-FlowLens-Trace-Id` header injected into the originating fetch/XHR request
-- Each span is split into **3 `backend-span` events** with phases `request`, `handler`, `response` — timestamps are calculated from the span's duration (start, midpoint, end)
-- `BackendSpanData` includes: `route`, `method`, `statusCode`, `duration`, `serviceName`, `phase`, and optional `step`
-- Accepts flexible source stack formats:
-  - `sourceStack` — full V8 stack string (e.g. `"Error\n    at handler (/path:10:5)"`)
-  - `stack` — alias for sourceStack
+- Each span is split into **3 `backend-span` events** with phases and step labels:
+  - `request` (step: `ingress`) — timestamp = start of span
+  - `handler` (step: `route-handler`) — timestamp = midpoint of span
+  - `response` (step: `egress`) — timestamp = end of span
+- Supports **per-phase source stacks** — each phase can have its own source stack:
+  - `phaseStacks: { request, handler, response }` — object with per-phase V8 stacks
+  - `requestStack` / `handlerStack` / `responseStack` — individual fields (fallback)
+  - Generic `sourceStack` or `stack` used as fallback for any missing phase
   - `sourceFile` + `sourceLine` + `sourceColumn` + `sourceFunction` — synthesized into a V8 frame
+  - Handler stacks are run through `normalizeHandlerStack()` which strips "at traced" wrapper frames
+- `BackendSpanData` includes: `route`, `method`, `statusCode`, `duration`, `serviceName`, `phase`, `step`, and optional `sourceStack`
 - Validates `traceId` (returns 400 if missing)
 - Gracefully handles port-in-use (logs warning, collector disabled)
 
@@ -291,7 +299,7 @@ App (split-view drag handle between target and renderer)
 
 | Hook | Responsibility |
 |------|----------------|
-| `useTraceEvents` | Subscribes to live event stream, accumulates traces, provides `traces[]` and `eventCount` |
+| `useTraceEvents` | Subscribe-first pattern: subscribes to live events, then loads snapshots via `getAllTraces()` and merges via `mergeTraceSnapshot()`. Uses `upsertEvent()` (dedup by `event.id`) + `recomputeTraceMeta()` (re-sort, recalculate start/end/root). Provides `traces[]` and `eventCount` |
 | `useSourceHitMap` | Parses stacks for every event, tracks per-file/line hit counts (`currentTraceHits` for live, `allTraceHits` for focus), auto-fetches source files, exposes `fetchSourceIfNeeded` for on-demand fetching |
 | `useConsoleEntries` | Extracts console/error events into filterable entries (capped at 2000) |
 

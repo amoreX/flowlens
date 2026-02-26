@@ -34,9 +34,9 @@ Injected into every loaded page. Monkey-patches:
 - **fetch** and **XMLHttpRequest** — request/response/error events; injects `X-FlowLens-Trace-Id` header into all outgoing requests for backend correlation
 - **console.\*** (log, warn, error, info, debug)
 - **window.onerror** + **unhandledrejection**
-- **React state detection** — after click/submit/change/input events, walks the fiber tree via `setTimeout(0)` to compare `memoizedState` vs `alternate.memoizedState` on useState/useReducer hooks, emitting `state-change` events with component name, hook index, and prev/current values
+- **React state detection** — after **all event types** (DOM events, fetch/XHR response/error, console.*), schedules state checks at multiple delays `[0, 40, 140]ms` to catch async re-renders. Walks the fiber tree comparing `memoizedState` vs `alternate.memoizedState` on useState/useReducer hooks, emitting `state-change` events with component name, hook index, and prev/current values. Deduplicates via `emittedStateSignatures` map to prevent duplicate emissions
 
-Every event captures `new Error().stack` for source mapping. The IIFE also walks the React fiber tree (`__reactFiber$`) to extract component source locations — **React 19 primary path** uses `fiber._debugStack` (V8 error stack from element creation), **React 18 fallback** uses `fiber._debugSource` (Babel transform annotations). Collected frames are deduplicated and appended to the event's sourceStack.
+Every event captures `new Error().stack` for source mapping (with a per-process `seq` counter for deterministic ordering of same-timestamp events). The IIFE also walks the React fiber tree (`__reactFiber$`) to extract component source locations — `getFiberRootFromElement()` first checks the target element, then falls back to scanning `document.body`'s children. **React 19 primary path** uses `fiber._debugStack` (V8 error stack from element creation), **React 18 fallback** uses `fiber._debugSource` (Babel transform annotations). Collected frames are deduplicated and appended to the event's sourceStack.
 
 ### Source Fetcher (source-fetcher.ts)
 
@@ -49,11 +49,11 @@ Returns `SourceResponse` which optionally includes `lineMap: Record<number, numb
 
 ### Backend Span Collector (span-collector.ts)
 
-HTTP server on port 9229 that receives backend spans via POST. Backends read the `X-FlowLens-Trace-Id` header from incoming requests and POST span data back to FlowLens with the same traceId. Each span is split into **3 events** (request/handler/response phases) with calculated timestamps, all ingested into the trace engine. Accepts flexible source formats: `sourceStack` (V8 stack), `stack` (alias), or `sourceFile` + `sourceLine` + `sourceColumn` + `sourceFunction`.
+HTTP server on port 9229 that receives backend spans via POST. Backends read the `X-FlowLens-Trace-Id` header from incoming requests and POST span data back to FlowLens with the same traceId. Each span is split into **3 events** with phases and step labels: `request` (ingress), `handler` (route-handler), `response` (egress) — timestamps calculated from span duration (start, midpoint, end). Supports **per-phase source stacks** via `phaseStacks: { request, handler, response }` or individual `requestStack`/`handlerStack`/`responseStack` fields (with generic `sourceStack` as fallback for any missing phase). Handler stacks are normalized to strip "at traced" wrapper frames. Also accepts `sourceFile` + `sourceLine` + `sourceColumn` + `sourceFunction` which are synthesized into V8 frames.
 
 ### Trace Correlation Engine (trace-correlation-engine.ts)
 
-Groups events by `traceId` into `TraceData` objects. Click/submit events generate new trace IDs; subsequent network/console/error events inherit the current trace ID. Max 500 traces with LRU eviction by insertion order.
+Groups events by `traceId` into `TraceData` objects. Click/submit events generate new trace IDs; subsequent network/console/error events inherit the current trace ID. Events are inserted in sorted order via `insertEventSorted()` (by timestamp), and `startTime`, `endTime`, `rootEvent`, and `url` are updated on each insert. Max 500 traces with LRU eviction by insertion order.
 
 ### IPC Channels
 
@@ -102,7 +102,7 @@ All dividers are draggable. Console is collapsible.
 
 ### Core Hooks
 
-- **useTraceEvents** — subscribes to `onTraceEvent`, accumulates events into `TraceData[]`
+- **useTraceEvents** — subscribe-first pattern: subscribes to `onTraceEvent` live stream, then loads existing snapshots via `getAllTraces()` and merges them. Uses `upsertEvent()` with dedup by `event.id` and `recomputeTraceMeta()` to re-sort events and recalculate start/end/root on each update
 - **useSourceHitMap** — parses `sourceStack` via `parseAllUserFrames()`, tracks per-file/line hit counts per trace (`currentTraceHits` for live mode, `allTraceHits` map for focus mode lookups), auto-fetches source files, provides hit data + source cache
 - **useConsoleEntries** — extracts console/error events, filters by level, caps at 2000
 
@@ -122,7 +122,7 @@ Parses V8 stack traces from browser (HTTP URLs), Node.js (filesystem paths), and
 
 **Renderer:** `src/renderer/src/` — App.tsx (router), pages/TracePage.tsx (main layout), components/, hooks/, utils/
 
-**Shared types:** `src/shared/types.ts` — CapturedEvent, TraceData, EventType, EventData unions (incl. BackendSpanData with phase/step, StateChangeData), SourceLocation, SourceResponse (with optional lineMap)
+**Shared types:** `src/shared/types.ts` — CapturedEvent (with optional `seq` for deterministic ordering), TraceData, EventType, EventData unions (incl. BackendSpanData with phase/step, StateChangeData), SourceLocation, SourceResponse (with optional lineMap)
 
 ## Design Philosophy
 

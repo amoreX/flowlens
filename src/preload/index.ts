@@ -40,6 +40,26 @@ const api = {
     return () => {
       ipcRenderer.removeListener('target:loaded', handler)
     }
+  },
+
+  // SDK mode
+  startSdkMode: (): Promise<{ success: boolean; connectedClients: number }> => {
+    return ipcRenderer.invoke('sdk:start-listening')
+  },
+  stopSdkMode: (): Promise<{ success: boolean }> => {
+    return ipcRenderer.invoke('sdk:stop-listening')
+  },
+  getSdkConnectionCount: (): Promise<number> => {
+    return ipcRenderer.invoke('sdk:get-connection-count')
+  },
+  onSdkConnectionCount: (callback: (count: number) => void): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, count: number): void => {
+      callback(count)
+    }
+    ipcRenderer.on('sdk:connection-count', handler)
+    return () => {
+      ipcRenderer.removeListener('sdk:connection-count', handler)
+    }
   }
 }
 

@@ -19,7 +19,8 @@
     "build:linux": "npm run build && electron-builder --linux"
   },
   "dependencies": {
-    "uuid": "^11.1.0"
+    "uuid": "^11.1.0",
+    "ws": "^8.19.0"
   },
   "devDependencies": {
     "@electron-toolkit/eslint-config-ts": "^3.0.0",
@@ -29,6 +30,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@types/uuid": "^10.0.0",
+    "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^4.3.4",
     "electron": "^34.2.0",
     "electron-builder": "^25.1.8",
@@ -44,5 +46,8 @@
     "type": "git",
     "url": "git+https://github.com/amoreX/flowlens.git"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "workspaces": [
+    "packages/*"
+  ]
 }
