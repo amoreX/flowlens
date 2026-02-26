@@ -3,6 +3,13 @@
   flex-direction: column;
   height: 100%;
   background: var(--bg-primary);
+  -webkit-app-region: drag;
+}
+
+.source-panel button,
+.source-panel .source-code-area,
+.source-panel .call-stack-bottom {
+  -webkit-app-region: no-drag;
 }
 
 /* File tabs */

@@ -9,13 +9,14 @@ FlowLens is an Electron desktop app that loads any web page in an embedded brows
 ```
 src/
 ├── main/                              # Electron main process
-│   ├── index.ts                       # App entry — boots engine, registers IPC, starts span collector
-│   ├── window-manager.ts              # Creates the BrowserWindow (React UI lives here)
+│   ├── index.ts                       # App entry — boots engine, registers IPC, starts span collector + WS server
+│   ├── window-manager.ts              # Creates BrowserWindow (app icon, dock icon, autoHideMenuBar)
 │   ├── target-view.ts                 # WebContentsView for target site + IIFE injection
 │   ├── ipc-handlers.ts                # All IPC invoke handlers
 │   ├── trace-correlation-engine.ts    # In-memory trace store (groups events by traceId)
 │   ├── source-fetcher.ts             # Source resolver (disk / file:// / HTTP + inline source map extraction)
-│   └── span-collector.ts             # HTTP server on :9229 for backend span ingestion
+│   ├── span-collector.ts             # HTTP server on :9229 for backend span ingestion
+│   └── ws-server.ts                  # WebSocket server on :9230 for SDK mode (@flowlens/web)
 ├── preload/
 │   ├── index.ts                       # Renderer preload — exposes window.flowlens API
 │   ├── index.d.ts                     # Type declarations for window.flowlens
@@ -35,9 +36,10 @@ src/
 │   │   ├── FlowNavigator.tsx          # ← Event N/M → stepping bar
 │   │   ├── ConsolePanel.tsx           # Filterable console log viewer
 │   │   ├── EventDetailPanel.tsx       # Slide-in JSON detail overlay
-│   │   ├── StatusBar.tsx              # Top bar: URL, event count, stop button
+│   │   ├── StatusBar.tsx              # FlowLensLogo + status dot + URL/SDK badge + event count + stop
+│   │   ├── FlowLensLogo.tsx           # Animated SVG logo (lens + pulsing core + data wave)
 │   │   ├── EventBadge.tsx             # Event count badge
-│   │   └── UrlInput.tsx               # URL input with validation
+│   │   └── UrlInput.tsx               # Inline URL input row (input + → button)
 │   ├── hooks/
 │   │   ├── useTraceEvents.ts          # Accumulates events into traces from IPC stream
 │   │   ├── useSourceHitMap.ts         # Tracks per-file/line hit counts + source cache
@@ -59,7 +61,7 @@ FlowLens runs three Electron processes that communicate via IPC:
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                     MAIN PROCESS                            │
-│  trace-correlation-engine  ·  source-fetcher  ·  IPC hub    │
+│  trace-engine · source-fetcher · span-collector · ws-server │
 └──────────┬────────────────────────────────┬─────────────────┘
            │ IPC                            │ IPC
            ▼                                ▼
@@ -74,9 +76,9 @@ FlowLens runs three Electron processes that communicate via IPC:
 └──────────────────────┘            └──────────────────────────┘
 ```
 
-- **Main process** — owns the trace engine, handles IPC, manages both views
+- **Main process** — owns the trace engine, handles IPC, manages both views, runs span collector (HTTP :9229) and WebSocket server (:9230 for SDK mode)
 - **Target view** — sandboxed WebContentsView that loads the user's site; instrumentation IIFE runs here
-- **Renderer** — the React UI that displays traces, source code, and console output
+- **Renderer** — the React UI that displays traces, source code, and console output. Three app modes: `onboarding` (URL input), `trace` (embedded browser + split view), `sdk-listening` (full-width UI, no target view)
 - **Split boundary** — draggable handle in App.tsx controls the ratio (default 55/45, clamped 20–80%). Renderer updates local state for immediate feedback, then sends ratio to main via `target:set-split` IPC to resize the WebContentsView bounds
 
 ---
@@ -84,7 +86,7 @@ FlowLens runs three Electron processes that communicate via IPC:
 ## Data Flow: End to End
 
 ```
-1. User enters URL in onboarding page
+1. User enters URL in onboarding page (or clicks "SDK Mode" for external SDK)
         ↓
 2. App calls window.flowlens.loadTargetUrl(url)
         ↓  IPC invoke 'target:load-url'
@@ -235,6 +237,9 @@ A `TraceData` looks like:
 |---------|---------|---------|
 | `trace:event-received` | `CapturedEvent` | Forward live events to UI |
 | `target:loaded` | `string` (url) | Notify renderer that target page loaded |
+| `sdk:connection-count` | `number` | Live SDK WebSocket client count |
+| `sdk:connected` | `{ userAgent }` | New SDK client connected |
+| `sdk:disconnected` | `null` | Last SDK client disconnected |
 
 ### Renderer → Main (invoke, request/response)
 
@@ -247,6 +252,9 @@ A `TraceData` looks like:
 | `trace:get` | `id` | `TraceData \| null` | Fetch single trace |
 | `trace:clear` | — | `{ success }` | Clear all traces |
 | `source:fetch` | `fileUrl` | `SourceResponse` | Fetch source (disk for local paths, HTTP + source map for URLs) |
+| `sdk:start-listening` | — | `{ success, connectedClients }` | Enter SDK mode |
+| `sdk:stop-listening` | — | `{ success }` | Exit SDK mode (clears traces + source cache) |
+| `sdk:get-connection-count` | — | `number` | Get current SDK WebSocket client count |
 
 The renderer accesses these through the `window.flowlens` API (exposed by `preload/index.ts` via contextBridge).
 
@@ -257,22 +265,22 @@ The renderer accesses these through the `window.flowlens` API (exposed by `prelo
 ### Layout
 
 ```
-┌──────────────────────────────────────┐
-│  StatusBar  (URL · event count · ■)  │
-├────────────────┬─┬───────────────────┤
-│                │ │                    │
-│   Timeline     │▐│  Source Code      │
-│   (traces +    │▐│  Panel            │
-│    events)     │▐│  (+ call stack    │
-│                │▐│   in focus mode)  │
-│   280px default│▐│                   │
+┌────────────────┬─┬───────────────────┐
+│  [logo] TRACES │ │                   │
+│                │ │  Source Code      │
+│  Timeline      │▐│  Panel            │
+│  (traces +     │▐│  (+ call stack    │
+│   events)      │▐│   in focus mode)  │
+│                │▐│                   │
 │                │▐│  + FlowNavigator  │
 ├────────────────┴─┴───────────────────┤
-│═══════ resize handle ════════════════│
-├──────────────────────────────────────┤
-│  Console Panel  (filterable, 180px)  │
+│ ◀ Console │ Inspector │  · URL  Exit │
+├══════════ resize handle ═════════════┤
+│  Console/Inspector Panel  (180px)    │
 └──────────────────────────────────────┘
 ```
+
+No dedicated top status bar. The FlowLensLogo sits in the StatusBar component. URL (or "SDK — N connected" in SDK mode) and an Exit button are shown on the right side of the bottom section header, alongside the Console/Inspector tab buttons. Both the traces column and source panel are window-draggable (`-webkit-app-region: drag`).
 
 - Vertical divider between timeline and source is draggable (min 160px each side)
 - Horizontal divider above console is draggable (60–500px)
@@ -283,23 +291,26 @@ The renderer accesses these through the `window.flowlens` API (exposed by `prelo
 ```
 App (split-view drag handle between target and renderer)
 ├── OnboardingPage        (mode === 'onboarding')
-│   └── UrlInput          (URL input + launch button)
-└── TracePage             (mode === 'trace')
-    ├── StatusBar
+│   ├── UrlInput          (inline row: input + → button)
+│   └── SDK Mode button   (enters 'sdk-listening' mode)
+└── TracePage             (mode === 'trace' or 'sdk-listening')
     ├── Timeline
     │   └── TraceGroup[]          (labels: click/submit/navigation/Backend Span/State Update)
     │       └── TimelineEvent[]   (badges: UI/REQ/RES/LOG/ERR/NAV/SVC/SET)
     ├── SourceCodePanel   (live mode or focus mode)
     ├── FlowNavigator     (only when a trace is focused)
-    ├── ConsolePanel
+    ├── Bottom section header     (◀ Console | Inspector tabs + URL/SDK + Exit on right)
+    ├── ConsolePanel / InspectorPanel
     └── EventDetailPanel  (overlay — custom views for backend-span + state-change)
 ```
+
+**FlowLensLogo** is an animated SVG component (lens shape + pulsing core + data wave line) rendered in the StatusBar. The StatusBar itself sits at the top-left of the traces column.
 
 ### Three core hooks
 
 | Hook | Responsibility |
 |------|----------------|
-| `useTraceEvents` | Subscribe-first pattern: subscribes to live events, then loads snapshots via `getAllTraces()` and merges via `mergeTraceSnapshot()`. Uses `upsertEvent()` (dedup by `event.id`) + `recomputeTraceMeta()` (re-sort, recalculate start/end/root). Provides `traces[]` and `eventCount` |
+| `useTraceEvents` | Subscribe-first: subscribes to live events, then loads snapshots via `getAllTraces()` and merges via `mergeTraceSnapshot()`. Uses `upsertEvent()` (dedup by `event.id`) + `recomputeTraceMeta()` (re-sort, recalculate start/end/root). Provides `traces[]` and `eventCount` |
 | `useSourceHitMap` | Parses stacks for every event, tracks per-file/line hit counts (`currentTraceHits` for live, `allTraceHits` for focus), auto-fetches source files, exposes `fetchSourceIfNeeded` for on-demand fetching |
 | `useConsoleEntries` | Extracts console/error events into filterable entries (capped at 2000) |
 

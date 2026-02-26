@@ -1,0 +1,78 @@
+.flowlens-logo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  user-select: none;
+  margin-right: var(--space-3);
+  padding-left: 70px; /* Clear macOS traffic lights */
+  -webkit-app-region: drag; /* Prevent logo click interfering with window drag */
+}
+
+.flowlens-logo-svg {
+  width: 20px;
+  height: 20px;
+  color: var(--text-secondary);
+  overflow: visible;
+}
+
+.logo-lens {
+  stroke: var(--blue);
+  opacity: 0.6;
+  transition: all 0.3s ease;
+}
+
+.logo-core {
+  fill: var(--blue);
+  opacity: 0.8;
+  animation: logoCorePulse 3s infinite ease-in-out;
+}
+
+.logo-wave {
+  stroke: var(--accent);
+  stroke-dasharray: 40;
+  stroke-dashoffset: 40;
+  animation: logoWaveFlow 4s infinite linear;
+  filter: drop-shadow(0 0 4px var(--accent-dim));
+}
+
+@keyframes logoCorePulse {
+  0%, 100% {
+    r: 2.5;
+    opacity: 0.5;
+    filter: drop-shadow(0 0 2px var(--blue));
+  }
+  50% {
+    r: 3.5;
+    opacity: 1;
+    filter: drop-shadow(0 0 6px var(--blue));
+  }
+}
+
+@keyframes logoWaveFlow {
+  0% {
+    stroke-dashoffset: 40;
+  }
+  40% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: -40;
+  }
+}
+
+.flowlens-logo:hover .logo-lens {
+  stroke: var(--accent);
+  opacity: 1;
+}
+
+.flowlens-logo-text {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  background: linear-gradient(90deg, #fff 0%, var(--text-secondary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  padding-top: 1px;
+}

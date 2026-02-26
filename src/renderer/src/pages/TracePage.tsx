@@ -3,7 +3,6 @@ import { useTraceEvents } from '../hooks/useTraceEvents'
 import { useConsoleEntries } from '../hooks/useConsoleEntries'
 import { useInspectorEntries } from '../hooks/useInspectorEntries'
 import { useSourceHitMap } from '../hooks/useSourceHitMap'
-import { StatusBar } from '../components/StatusBar'
 import { Timeline } from '../components/Timeline'
 import { SourceCodePanel } from '../components/SourceCodePanel'
 import { ConsolePanel } from '../components/ConsolePanel'
@@ -206,8 +205,6 @@ export function TracePage({ targetUrl, onStop, sdkMode, sdkConnections }: TraceP
 
   return (
     <div className="trace-page" ref={tracePageRef}>
-      <StatusBar url={targetUrl} eventCount={eventCount} onStop={onStop} sdkMode={sdkMode} sdkConnections={sdkConnections} />
-
       <div className="main-content">
         <div className="traces-column" style={{ width: tracesWidth }}>
           <Timeline
@@ -279,6 +276,16 @@ export function TracePage({ targetUrl, onStop, sdkMode, sdkConnections }: TraceP
               <span className="bottom-tab-badge">{inspectorEntries.totalCount}</span>
             )}
           </button>
+          <div className="bottom-header-spacer" />
+          <div className="bottom-header-right">
+            <span className="bottom-header-dot" />
+            {sdkMode ? (
+              <span className="bottom-header-url">SDK — {sdkConnections || 0} connected</span>
+            ) : (
+              <span className="bottom-header-url">{targetUrl}</span>
+            )}
+            <button className="bottom-header-stop" onClick={onStop}>Exit</button>
+          </div>
         </div>
         {!bottomCollapsed && bottomTab === 'console' && (
           <ConsolePanel

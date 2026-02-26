@@ -1,10 +1,12 @@
 # FlowLens
 
-A desktop debugging tool that gives you full visibility into what your web app is doing. Load any URL, and FlowLens automatically captures every click, network request, console log, and error — grouped into execution traces and mapped back to your source code. No SDK, no code changes.
+A desktop debugging tool that gives you full visibility into what your web app is doing. Load any URL, and FlowLens automatically captures every click, network request, console log, and error — grouped into execution traces and mapped back to your source code. No SDK, no code changes. Or use **SDK mode** with `@flowlens/web` and `@flowlens/node` to instrument your own app directly.
 
 ## How It Works
 
-FlowLens runs your target site in an embedded browser alongside a debugging UI in a resizable split view. JavaScript instrumentation is injected automatically on page load — it monkey-patches DOM events, fetch, XHR, console, and error handlers to capture everything that happens. It also walks the React fiber tree (React 18 and 19) to extract component-level source locations and detect state changes. A `X-FlowLens-Trace-Id` header is injected into all outgoing fetch/XHR requests so backends can correlate spans with frontend traces.
+**Embedded mode:** FlowLens runs your target site in an embedded browser alongside a debugging UI in a resizable split view. JavaScript instrumentation is injected automatically on page load — it monkey-patches DOM events, fetch, XHR, console, and error handlers to capture everything that happens. It also walks the React fiber tree (React 18 and 19) to extract component-level source locations and detect state changes. A `X-FlowLens-Trace-Id` header is injected into all outgoing fetch/XHR requests so backends can correlate spans with frontend traces.
+
+**SDK mode:** Install `@flowlens/web` in your frontend and `@flowlens/node` in your backend. The web SDK streams events to FlowLens via WebSocket (:9230), and the node SDK posts backend spans via HTTP (:9229). Click "SDK Mode" on the FlowLens onboarding screen — the UI goes full-width with a live connection counter.
 
 ## Features
 
@@ -16,6 +18,7 @@ FlowLens runs your target site in an embedded browser alongside a debugging UI i
 - **Dual-mode highlighting** — live mode shows real-time hit accumulation (orange); focus mode shows a selected event's execution path (amber)
 - **Flow navigation** — step through events in a trace with arrow keys to walk through the execution path
 - **Console panel** — filterable console output (log, warn, error, info, debug) captured from the target page
+- **SDK packages** — `@flowlens/web` (browser) and `@flowlens/node` (Express/Fastify/generic) for instrumenting your own app without the embedded browser
 - **Resizable split view** — draggable boundary between target site and debugging UI (20–80%), plus draggable internal panel dividers
 
 ## Getting Started
@@ -49,10 +52,13 @@ Electron 34, React 19, TypeScript, electron-vite 3, vanilla CSS.
 
 ```
 src/
-├── main/           Electron main process (trace engine, source fetcher, span collector, IPC)
+├── main/           Electron main process (trace engine, source fetcher, span collector, WS server, IPC)
 ├── preload/        Context bridge APIs (renderer + target page)
 ├── renderer/src/   React UI (timeline, source panel, console, flow navigator)
 └── shared/         Type definitions shared across processes
+packages/
+├── web/            @flowlens/web — browser instrumentation SDK
+└── node/           @flowlens/node — backend span collection SDK
 ```
 
-See `readme_dev.md` for a detailed architecture walkthrough.
+See `readme_dev.md` for a detailed architecture walkthrough and `readme_package.md` for the SDK packages documentation.

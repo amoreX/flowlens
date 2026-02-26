@@ -1,3 +1,5 @@
+import { FlowLensLogo } from './FlowLensLogo'
+
 interface StatusBarProps {
   url: string
   eventCount: number
@@ -9,6 +11,7 @@ interface StatusBarProps {
 export function StatusBar({ url, eventCount, onStop, sdkMode, sdkConnections }: StatusBarProps) {
   return (
     <div className="status-bar">
+      <FlowLensLogo />
       <div className="status-dot" />
       {sdkMode ? (
         <>

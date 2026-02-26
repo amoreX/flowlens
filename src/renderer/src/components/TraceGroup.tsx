@@ -61,7 +61,7 @@ export function TraceGroup({ trace, selectedEventId, focusedEventId, onSelectEve
               onFocusTrace(trace.id)
             }}
           >
-            {'</>'}
+            {'\u27A4'}
           </button>
           <button
             className="trace-details-btn"
@@ -71,7 +71,7 @@ export function TraceGroup({ trace, selectedEventId, focusedEventId, onSelectEve
               onOpenTraceDetails(trace.id)
             }}
           >
-            {'{ }'}
+            {'\u2026'}
           </button>
         </div>
       </div>

@@ -7,9 +7,9 @@ interface OnboardingPageProps {
 }
 
 const EXAMPLE_URLS = [
-  'https://example.com',
-  'https://news.ycombinator.com',
-  'https://jsonplaceholder.typicode.com'
+  { label: 'localhost:3099', url: 'http://localhost:3099' },
+  { label: 'example.com', url: 'https://example.com' },
+  { label: 'news.ycombinator.com', url: 'https://news.ycombinator.com' }
 ]
 
 export function OnboardingPage({ onLaunch, onSdkMode }: OnboardingPageProps) {
@@ -19,51 +19,33 @@ export function OnboardingPage({ onLaunch, onSdkMode }: OnboardingPageProps) {
       <div className="onboarding-glow" />
 
       <div className="onboarding-content">
-        <div className="onboarding-badge">Developer Tool</div>
         <h1 className="onboarding-title">
           <span>Flow</span>Lens
         </h1>
         <p className="onboarding-subtitle">
-          Trace frontend execution flows, network calls, and console output — all in one unified timeline. Paste a URL to start debugging.
+          Paste a URL to trace execution flows, network calls, and state changes.
         </p>
+
         <UrlInput onLaunch={onLaunch} />
+
         <div className="onboarding-hints">
-          {EXAMPLE_URLS.map((url) => (
-            <button
-              key={url}
-              className="hint-badge no-drag"
-              onClick={() => onLaunch(url)}
-            >
-              {url.replace('https://', '')}
+          {EXAMPLE_URLS.map(({ label, url }) => (
+            <button key={url} className="hint-badge no-drag" onClick={() => onLaunch(url)}>
+              {label}
             </button>
           ))}
         </div>
 
         <div className="onboarding-divider">
           <span className="onboarding-divider-line" />
-          <span className="onboarding-divider-text">OR</span>
+          <span className="onboarding-divider-text">or</span>
           <span className="onboarding-divider-line" />
         </div>
 
         <button className="sdk-mode-btn no-drag" onClick={onSdkMode}>
           SDK Mode
-          <span className="sdk-mode-btn-sub">Connect your app via @flowlens/web</span>
+          <span className="sdk-mode-btn-sub">Connect via @flowlens/web</span>
         </button>
-
-        <div className="onboarding-features">
-          <div className="onboarding-feature">
-            <span className="feature-dot" style={{ background: 'var(--accent)' }} />
-            <span>DOM + Network tracing</span>
-          </div>
-          <div className="onboarding-feature">
-            <span className="feature-dot" style={{ background: 'var(--blue)' }} />
-            <span>Source code mapping</span>
-          </div>
-          <div className="onboarding-feature">
-            <span className="feature-dot" style={{ background: 'var(--green)' }} />
-            <span>Live console capture</span>
-          </div>
-        </div>
       </div>
     </div>
   )
