@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import type { TraceData, CapturedEvent } from '../types/events'
 import { TraceGroup } from './TraceGroup'
 
@@ -12,8 +13,27 @@ interface TimelineProps {
 }
 
 export function Timeline({ traces, selectedEventId, focusedEventId, onSelectEvent, onFocusTrace, onOpenTraceDetails, onClear }: TimelineProps) {
+  const timelineRef = useRef<HTMLDivElement>(null)
+
+  // Keep focused event visible when navigating through a trace.
+  useEffect(() => {
+    if (!focusedEventId) return
+
+    let raf = 0
+    const scrollFocusedEventIntoView = (): void => {
+      const root = timelineRef.current
+      if (!root) return
+      const focusedEvent = root.querySelector<HTMLElement>('.timeline-event.focused')
+      if (!focusedEvent) return
+      focusedEvent.scrollIntoView({ block: 'nearest' })
+    }
+
+    raf = window.requestAnimationFrame(scrollFocusedEventIntoView)
+    return () => window.cancelAnimationFrame(raf)
+  }, [focusedEventId])
+
   return (
-    <div className="timeline">
+    <div className="timeline" ref={timelineRef}>
       <div className="timeline-header">
         <h2 className="timeline-title">Traces</h2>
         {traces.length > 0 && (

@@ -1,25 +1,35 @@
 # FlowLens
 
-A desktop debugging tool that gives you full visibility into what your web app is doing. Load any URL, and FlowLens automatically captures every click, network request, console log, and error — grouped into execution traces and mapped back to your source code. No SDK, no code changes. Or use **SDK mode** with `@flowlens/web` and `@flowlens/node` to instrument your own app directly.
+FlowLens is an Electron desktop debugging tool for tracing frontend and backend behavior in one timeline.
+
+You can use it in two ways:
+
+- **Embedded mode**: paste a URL and FlowLens loads your app in an embedded browser.
+- **SDK mode**: instrument your own apps directly with `@flowlens/web` and `@flowlens/node`.
 
 ## How It Works
 
-**Embedded mode:** FlowLens runs your target site in an embedded browser alongside a debugging UI in a resizable split view. JavaScript instrumentation is injected automatically on page load — it monkey-patches DOM events, fetch, XHR, console, and error handlers to capture everything that happens. It also walks the React fiber tree (React 18 and 19) to extract component-level source locations and detect state changes. A `X-FlowLens-Trace-Id` header is injected into all outgoing fetch/XHR requests so backends can correlate spans with frontend traces.
+### Embedded mode
 
-**SDK mode:** Install `@flowlens/web` in your frontend and `@flowlens/node` in your backend. The web SDK streams events to FlowLens via WebSocket (:9230), and the node SDK posts backend spans via HTTP (:9229). Click "SDK Mode" on the FlowLens onboarding screen — the UI goes full-width with a live connection counter.
+On page load, FlowLens injects the browser bundle built from `@flowlens/web` into the target view and calls `FlowLensWeb.init()`.  
+That captures DOM events, network calls, console logs, runtime errors, and React state changes, then streams events to the built-in WebSocket server (`ws://localhost:9230`).
 
-## Features
+### SDK mode
 
-- **Automatic tracing** — click/submit starts a new trace; subsequent network calls, console output, errors, and state changes are grouped under it
-- **Backend span collection** — built-in HTTP collector on port 9229 receives backend spans (split into request/handler/response phases with per-phase source stacks) correlated by trace ID
-- **React state tracking** — detects useState/useReducer changes after any event type (DOM, network, console), checking at multiple delays to catch async re-renders, with deduplication
-- **Source code viewer** — see exactly which line of your code triggered each event, with full call stack navigation
-- **Source map extraction** — automatically extracts original source from inline source maps served by dev servers; also reads backend source directly from disk via filesystem paths and `file://` URLs
-- **Dual-mode highlighting** — live mode shows real-time hit accumulation (orange); focus mode shows a selected event's execution path (amber)
-- **Flow navigation** — step through events in a trace with arrow keys to walk through the execution path
-- **Console panel** — filterable console output (log, warn, error, info, debug) captured from the target page
-- **SDK packages** — `@flowlens/web` (browser) and `@flowlens/node` (Express/Fastify/generic) for instrumenting your own app without the embedded browser
-- **Resizable split view** — draggable boundary between target site and debugging UI (20–80%), plus draggable internal panel dividers
+- `@flowlens/web` (frontend) sends events over WS `:9230`
+- `@flowlens/node` (backend) posts spans to HTTP collector `:9229`
+
+Both feeds are correlated by `traceId` and rendered in the same timeline.
+
+## Key Features
+
+- Automatic trace grouping by user interaction
+- Frontend + backend correlation via `X-FlowLens-Trace-Id`
+- React state-change detection (`useState` / `useReducer`)
+- Source-code mapping and stack-based line highlighting
+- Inline event stepping with flow navigation
+- Bottom tabbed panel: Console + Inspector (state changes / responses)
+- Resizable split view and panel dividers
 
 ## Getting Started
 
@@ -28,37 +38,31 @@ npm install
 npm run dev
 ```
 
-This starts FlowLens in development mode with hot reload. Enter a URL (e.g. `http://localhost:3099` if you have a local dev server running) and start interacting with the page. Source code is loaded from your dev server — original source is automatically extracted from inline source maps when available.
-
-To collect backend spans, POST them to `http://localhost:9229` with a JSON body containing `traceId`, `route`, `method`, `statusCode`, `duration`, `serviceName`, and `timestamp`. Optionally include `sourceStack` (V8 stack string), or `sourceFile` + `sourceLine` for source mapping. For per-phase source stacks, use `phaseStacks: { request, handler, response }` or individual `requestStack`/`handlerStack`/`responseStack` fields.
+`npm run dev` now builds the web SDK bundle first, then starts Electron dev mode.
 
 ## Build
 
 ```bash
-# Typecheck and build for production
 npm run build
-
-# Platform-specific builds
 npm run build:mac
 npm run build:win
 npm run build:linux
 ```
 
-## Tech Stack
-
-Electron 34, React 19, TypeScript, electron-vite 3, vanilla CSS.
+`npm run build` also builds the web SDK bundle first.
 
 ## Project Structure
 
-```
+```text
 src/
-├── main/           Electron main process (trace engine, source fetcher, span collector, WS server, IPC)
-├── preload/        Context bridge APIs (renderer + target page)
-├── renderer/src/   React UI (timeline, source panel, console, flow navigator)
-└── shared/         Type definitions shared across processes
+  main/            Electron main process (trace engine, target view, collectors, WS, IPC)
+  preload/         Renderer/target bridge APIs
+  renderer/src/    React UI
+  shared/          Shared event and trace types
 packages/
-├── web/            @flowlens/web — browser instrumentation SDK
-└── node/           @flowlens/node — backend span collection SDK
+  web/             @flowlens/web frontend instrumentation SDK
+  node/            @flowlens/node backend span SDK
 ```
 
-See `readme_dev.md` for a detailed architecture walkthrough and `readme_package.md` for the SDK packages documentation.
+- Dev architecture details: `readme_dev.md`
+- SDK/package details: `readme_package.md`

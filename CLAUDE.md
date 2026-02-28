@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-FlowLens is a developer-focused debugging and tracing desktop application built with Electron. Users paste a URL, Electron loads it in an embedded browser, an auto-injected IIFE captures every UI event, network call, console log, and error — zero code changes required — and a trace correlation engine groups them into causal execution traces displayed in a real-time timeline UI with source code viewing.
+FlowLens is a developer-focused debugging and tracing desktop application built with Electron. Users paste a URL, Electron loads it in an embedded browser, and an auto-injected browser bundle (built from `@flowlens/web`) captures every UI event, network call, console log, and error — zero code changes required. A trace correlation engine groups them into causal execution traces displayed in a real-time timeline UI with source code viewing.
 
 **Current state:** Working MVP. Core instrumentation, trace correlation, split-view UI, source code panel, console, flow navigation, backend span collection, React state change detection, local source resolution, SDK mode with `@flowlens/web` and `@flowlens/node` packages. See `readme_dev.md` for a comprehensive developer walkthrough and `readme_package.md` for SDK package documentation.
 
@@ -21,25 +21,25 @@ FlowLens is a developer-focused debugging and tracing desktop application built 
 Three Electron processes communicate via IPC:
 
 - **Main process** — owns the trace correlation engine (in-memory, 500 trace LRU), source file fetcher (filesystem paths + `file://` URLs + HTTP with inline source map extraction, 100-entry LRU cache), span collector (HTTP server on :9229 for backend spans), WebSocket server (:9230 for SDK mode accepting events from `@flowlens/web`), IPC handler registry, and manages both views
-- **Target view** (WebContentsView, sandboxed) — loads the user's URL in the left portion of the window; IIFE instrumentation injected on page load via `executeJavaScript()`
+- **Target view** (WebContentsView, sandboxed) — loads the user's URL in the left portion of the window; injects `packages/web/dist/browser.global.js` and calls `FlowLensWeb.init()` on page load
 - **Renderer** (BrowserWindow) — React UI in the right portion; subscribes to live event stream and renders timeline, source code, and console
 
 **App modes:** `onboarding` (URL input + SDK Mode button), `trace` (embedded browser split view), `sdk-listening` (full-width UI, no target view, live WebSocket connection counter).
 
 **Split-view (trace mode):** Target site on left, React UI on right. Ratio is resizable via drag handle (default 55/45, clamped 20–80%). Controlled by `splitRatio` in `target-view.ts`, updated via `target:set-split` IPC.
 
-**Data flow:** User enters URL → main creates WebContentsView → page loads → IIFE injected → monkey-patches capture events → bridge.sendEvent() via IPC → main ingests into trace engine + forwards to renderer → React hooks update state → UI re-renders
+**Data flow:** User enters URL → main creates WebContentsView → page loads → `@flowlens/web` browser bundle injected and initialized → SDK monkey-patches capture events → events stream over WS (:9230) → main ingests into trace engine + forwards to renderer → React hooks update state → UI re-renders
 
-### Instrumentation (IIFE in target-view.ts)
+### Instrumentation (`@flowlens/web` bundle in `target-view.ts`)
 
-Injected into every loaded page. Monkey-patches:
+Injected into every loaded page via `browser.global.js`. Monkey-patches:
 - **DOM events** (click, input, submit, change, focus, blur) — click/submit start a **new trace ID**; others use current
 - **fetch** and **XMLHttpRequest** — request/response/error events; injects `X-FlowLens-Trace-Id` header into all outgoing requests for backend correlation
 - **console.\*** (log, warn, error, info, debug)
 - **window.onerror** + **unhandledrejection**
 - **React state detection** — after **all event types** (DOM events, fetch/XHR response/error, console.*), schedules state checks at multiple delays `[0, 40, 140]ms` to catch async re-renders. Walks the fiber tree comparing `memoizedState` vs `alternate.memoizedState` on useState/useReducer hooks, emitting `state-change` events with component name, hook index, and prev/current values. Deduplicates via `emittedStateSignatures` map to prevent duplicate emissions
 
-Every event captures `new Error().stack` for source mapping (with a per-process `seq` counter for deterministic ordering of same-timestamp events). The IIFE also walks the React fiber tree (`__reactFiber$`) to extract component source locations — `getFiberRootFromElement()` first checks the target element, then falls back to scanning `document.body`'s children. **React 19 primary path** uses `fiber._debugStack` (V8 error stack from element creation), **React 18 fallback** uses `fiber._debugSource` (Babel transform annotations). Collected frames are deduplicated and appended to the event's sourceStack.
+Every event captures `new Error().stack` for source mapping (with a per-process `seq` counter for deterministic ordering of same-timestamp events). The SDK runtime also walks the React fiber tree (`__reactFiber$`) to extract component source locations — `getFiberRootFromElement()` first checks the target element, then falls back to scanning `document.body`'s children. **React 19 primary path** uses `fiber._debugStack` (V8 error stack from element creation), **React 18 fallback** uses `fiber._debugSource` (Babel transform annotations). Collected frames are deduplicated and appended to the event's sourceStack.
 
 ### Source Fetcher (source-fetcher.ts)
 
@@ -87,11 +87,10 @@ Renderer accesses invoke channels via `window.flowlens` API (exposed by `preload
 
 ```
 ┌────────────────┬─┬───────────────────┐
-│  FlowLensLogo  │ │                   │
-│                │ │  Source Code      │
-│  Timeline      │▐│  Panel            │
-│  (traces +     │▐│  (live or focus)  │
-│   events)      │▐│  + FlowNavigator  │
+│  Timeline      │ │  Source Code      │
+│  (traces +     │▐│  Panel            │
+│   events)      │▐│  (live or focus)  │
+│                │▐│  + FlowNavigator  │
 │                │ │                   │
 ├────────────────┴─┴───────────────────┤
 │  ◀ Console │ Inspector │ · URL  Exit │
@@ -100,13 +99,11 @@ Renderer accesses invoke channels via `window.flowlens` API (exposed by `preload
 └──────────────────────────────────────┘
 ```
 
-No top status bar — the FlowLensLogo sits in the StatusBar component (top-left), URL/SDK status and Exit button are in the bottom section header (right side). Traces and source panels are window-draggable (`-webkit-app-region: drag`). All dividers are draggable. Console is collapsible.
+No top status bar. URL/SDK status and Exit button are in the bottom section header (right side). Traces and source panels are window-draggable (`-webkit-app-region: drag`). All dividers are draggable. Console is collapsible.
 
 ### Key Components
 
 - **TracePage** — layout orchestrator, owns selection/focus/resize state. Status info (URL/SDK connections/Exit) rendered inline in the bottom section header
-- **FlowLensLogo** — animated SVG logo (lens shape + pulsing core + data wave), rendered in the StatusBar
-- **StatusBar** — contains FlowLensLogo + green dot + URL or SDK badge + event count + Stop button
 - **Timeline → TraceGroup → TimelineEvent** — trace list with collapse/expand. Action buttons: ➤ (focus) and … (details)
 - **SourceCodePanel** — dual-mode: **live mode** (per-trace hit accumulation, orange highlights via `.hit-latest`/`.hit-current-event`) and **focus mode** (selected event's full call stack, amber highlights via `.hit-nav-*` classes). Both use blue `.hit-trace` for other events. Each mode uses 3-tier line highlighting for visual depth
 - **FlowNavigator** — ← Event N/M → bar for stepping through events in a trace
@@ -129,7 +126,7 @@ Parses V8 stack traces from browser (HTTP URLs), Node.js (filesystem paths), and
 
 ## Key File Paths
 
-**Main process:** `src/main/` — index.ts (entry), window-manager.ts (with app icon + dock icon), target-view.ts (IIFE + WebContentsView), ipc-handlers.ts, trace-correlation-engine.ts, source-fetcher.ts, span-collector.ts, ws-server.ts (WebSocket server for SDK mode)
+**Main process:** `src/main/` — index.ts (entry), window-manager.ts (with app icon + dock icon), target-view.ts (WebContentsView + web SDK bundle injection), ipc-handlers.ts, trace-correlation-engine.ts, source-fetcher.ts, span-collector.ts, ws-server.ts (WebSocket server for SDK mode)
 
 **Preloads:** `src/preload/` — index.ts (renderer `window.flowlens` API), target-preload.ts (target `__flowlens_bridge`)
 

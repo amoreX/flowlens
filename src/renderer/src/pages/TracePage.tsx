@@ -21,7 +21,7 @@ interface TracePageProps {
 }
 
 export function TracePage({ targetUrl, onStop, sdkMode, sdkConnections }: TracePageProps) {
-  const { traces, eventCount, clearTraces } = useTraceEvents()
+  const { traces, clearTraces } = useTraceEvents()
   const [selectedEvent, setSelectedEvent] = useState<CapturedEvent | null>(null)
 
   // Flow navigation state

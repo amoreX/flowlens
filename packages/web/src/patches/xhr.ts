@@ -53,6 +53,13 @@ export function patchXHR(detectReactState: boolean): Cleanup {
     )
 
     xhr.addEventListener('load', () => {
+      let bodyPreview: string | undefined
+      try {
+        bodyPreview = (xhr.responseText || '').slice(0, 2000)
+      } catch {
+        // ignore response body extraction failures
+      }
+
       emit(
         'network-response',
         {
@@ -61,7 +68,8 @@ export function patchXHR(detectReactState: boolean): Cleanup {
           url: xhr.__fl_url,
           status: xhr.status,
           statusText: xhr.statusText,
-          duration: Date.now() - start
+          duration: Date.now() - start,
+          bodyPreview
         },
         xhr.__fl_traceId
       )

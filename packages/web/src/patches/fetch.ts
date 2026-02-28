@@ -46,18 +46,30 @@ export function patchFetch(detectReactState: boolean): Cleanup {
     return origFetch
       .call(this, input, init)
       .then((res) => {
-        emit(
-          'network-response',
-          {
-            requestId: reqId,
-            method,
-            url,
-            status: res.status,
-            statusText: res.statusText,
-            duration: Date.now() - start
-          },
-          traceId
-        )
+        const responseData: Record<string, unknown> = {
+          requestId: reqId,
+          method,
+          url,
+          status: res.status,
+          statusText: res.statusText,
+          duration: Date.now() - start
+        }
+
+        try {
+          const clone = res.clone()
+          clone
+            .text()
+            .then((bodyText) => {
+              responseData.bodyPreview = bodyText.slice(0, 2000)
+              emit('network-response', responseData, traceId)
+            })
+            .catch(() => {
+              emit('network-response', responseData, traceId)
+            })
+        } catch {
+          emit('network-response', responseData, traceId)
+        }
+
         if (detectReactState) scheduleStateDetection(traceId, document.body)
         return res
       })

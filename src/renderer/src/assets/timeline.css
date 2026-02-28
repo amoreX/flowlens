@@ -15,13 +15,14 @@
 
 .traces-column {
   min-width: 160px;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   flex-shrink: 0;
   background: var(--bg-primary);
   border-right: 1px solid var(--border);
-  -webkit-app-region: drag;
+  -webkit-app-region: no-drag;
 }
 
 .traces-column button,
@@ -224,11 +225,19 @@
 /* Timeline */
 .timeline {
   flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-app-region: no-drag;
+  touch-action: pan-y;
   padding: var(--space-3);
   padding-top: 5px;
+}
+
+.timeline * {
+  -webkit-app-region: no-drag;
 }
 
 .timeline-header {
