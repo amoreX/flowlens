@@ -116,13 +116,24 @@ export function useSourceHitMap(): SourceHitMap {
   const [currentTraceHits, setCurrentTraceHits] = useState<TraceHitData | null>(null)
   const [allTraceHits, setAllTraceHits] = useState<Map<string, TraceHitData>>(new Map())
   const [sourceCache, setSourceCache] = useState<Map<string, SourceFileCache>>(new Map())
-  const [activeFile, setActiveFile] = useState<string | null>(null)
+  const [activeFile, setActiveFileState] = useState<string | null>(null)
 
   const allTraceHitsRef = useRef<Map<string, TraceHitData>>(new Map())
   const sourceCacheRef = useRef<Map<string, SourceFileCache>>(new Map())
   const currentTraceIdRef = useRef<string | null>(null)
   const traceEventsRef = useRef<Map<string, CapturedEvent[]>>(new Map())
   const fetchedRef = useRef<Set<string>>(new Set())
+  const activeFileRef = useRef<string | null>(null)
+  const manualFileSelectionRef = useRef(false)
+
+  useEffect(() => {
+    activeFileRef.current = activeFile
+  }, [activeFile])
+
+  const setActiveFile = useCallback((fp: string) => {
+    manualFileSelectionRef.current = true
+    setActiveFileState(fp)
+  }, [])
 
   const fetchSourceIfNeeded = useCallback((filePath: string) => {
     if (fetchedRef.current.has(filePath)) return
@@ -177,9 +188,21 @@ export function useSourceHitMap(): SourceHitMap {
     // This prevents the flash-to-empty when a DOM click event arrives (no user frames)
     // before the console.log/fetch events that DO have user frames.
     if (hits.files.size > 0) {
+      const isNewCurrentTrace = currentTraceIdRef.current !== traceId
       currentTraceIdRef.current = traceId
       setCurrentTraceHits(hits)
-      setActiveFile(hits.latestFile)
+
+      if (isNewCurrentTrace) {
+        manualFileSelectionRef.current = false
+        setActiveFileState(hits.latestFile)
+      } else {
+        const selected = activeFileRef.current
+        const selectedStillPresent = !!selected && hits.files.has(selected)
+        if (!manualFileSelectionRef.current || !selectedStillPresent) {
+          if (!selectedStillPresent) manualFileSelectionRef.current = false
+          setActiveFileState(hits.latestFile)
+        }
+      }
     }
   }, [fetchSourceIfNeeded])
 
@@ -215,7 +238,8 @@ export function useSourceHitMap(): SourceHitMap {
           if (hits && hits.files.size > 0) {
             currentTraceIdRef.current = t.id
             setCurrentTraceHits(hits)
-            setActiveFile(hits.latestFile)
+            manualFileSelectionRef.current = false
+            setActiveFileState(hits.latestFile)
             break
           }
         }

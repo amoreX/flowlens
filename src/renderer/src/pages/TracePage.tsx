@@ -10,19 +10,20 @@ import { InspectorPanel } from '../components/InspectorPanel'
 import { FlowNavigator } from '../components/FlowNavigator'
 import { EventDetailPanel } from '../components/EventDetailPanel'
 import { parseAllUserFrames } from '../utils/stack-parser'
-import type { CapturedEvent } from '../types/events'
+import type { CapturedEvent, DomEventData } from '../types/events'
 import '../assets/timeline.css'
 
 interface TracePageProps {
-  targetUrl: string
   onStop: () => void
   sdkMode?: boolean
   sdkConnections?: number
 }
 
-export function TracePage({ targetUrl, onStop, sdkMode, sdkConnections }: TracePageProps) {
+export function TracePage({ onStop, sdkMode, sdkConnections }: TracePageProps) {
   const { traces, clearTraces } = useTraceEvents()
   const [selectedEvent, setSelectedEvent] = useState<CapturedEvent | null>(null)
+  const [targetHighlightStatus, setTargetHighlightStatus] = useState<string | null>(null)
+  const lastHighlightedEventIdRef = useRef<string | null>(null)
 
   // Flow navigation state
   const [focusedTraceId, setFocusedTraceId] = useState<string | null>(null)
@@ -170,7 +171,16 @@ export function TracePage({ targetUrl, onStop, sdkMode, sdkConnections }: TraceP
     setFocusedTraceId(null)
     setFocusedEventIndex(0)
     setSelectedEvent(null)
+    setTargetHighlightStatus(null)
   }, [])
+
+  const handleSourceNavigateToEvent = useCallback((eventId: string) => {
+    if (!focusedTrace) return
+    const idx = focusedTrace.events.findIndex((ev) => ev.id === eventId)
+    if (idx < 0) return
+    setFocusedEventIndex(idx)
+    if (selectedEvent) setSelectedEvent(focusedTrace.events[idx])
+  }, [focusedTrace, selectedEvent])
 
   // Keyboard arrow navigation when a trace is focused
   useEffect(() => {
@@ -203,6 +213,35 @@ export function TracePage({ targetUrl, onStop, sdkMode, sdkConnections }: TraceP
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [focusedTrace, focusedEventIndex, selectedEvent])
 
+  // Highlight DOM event targets in the embedded page while navigating.
+  useEffect(() => {
+    if (!focusedEvent) {
+      setTargetHighlightStatus(null)
+      return
+    }
+    if (focusedEvent.id === lastHighlightedEventIdRef.current) return
+    lastHighlightedEventIdRef.current = focusedEvent.id
+
+    if (focusedEvent.type !== 'dom') {
+      setTargetHighlightStatus(null)
+      return
+    }
+
+    const domData = focusedEvent.data as DomEventData
+    window.flowlens
+      .highlightDomTarget(domData)
+      .then((result) => {
+        if (result.success) {
+          setTargetHighlightStatus(null)
+        } else {
+          setTargetHighlightStatus(result.reason || 'Could not highlight element in target view')
+        }
+      })
+      .catch(() => {
+        setTargetHighlightStatus('Could not highlight element in target view')
+      })
+  }, [focusedEvent])
+
   return (
     <div className="trace-page" ref={tracePageRef}>
       <div className="main-content">
@@ -228,6 +267,7 @@ export function TracePage({ targetUrl, onStop, sdkMode, sdkConnections }: TraceP
             hitMap={sourceHitMap}
             focusedEvent={focusedEvent}
             focusedTraceEvents={focusedTrace?.events}
+            onNavigateToTraceEvent={handleSourceNavigateToEvent}
           />
           {focusedTrace && (
             <FlowNavigator
@@ -276,16 +316,20 @@ export function TracePage({ targetUrl, onStop, sdkMode, sdkConnections }: TraceP
               <span className="bottom-tab-badge">{inspectorEntries.totalCount}</span>
             )}
           </button>
-          <div className="bottom-header-spacer" />
-          <div className="bottom-header-right">
-            <span className="bottom-header-dot" />
-            {sdkMode ? (
-              <span className="bottom-header-url">SDK — {sdkConnections || 0} connected</span>
-            ) : (
-              <span className="bottom-header-url">{targetUrl}</span>
-            )}
-            <button className="bottom-header-stop" onClick={onStop}>Exit</button>
-          </div>
+          {sdkMode && (
+            <>
+              <div className="bottom-header-spacer" />
+              <div className="bottom-header-right">
+                <span className="bottom-header-url">SDK — {sdkConnections || 0} connected</span>
+                {targetHighlightStatus && (
+                  <span className="bottom-header-note" title={targetHighlightStatus}>
+                    {targetHighlightStatus}
+                  </span>
+                )}
+                <button className="bottom-header-stop" onClick={onStop}>Exit</button>
+              </div>
+            </>
+          )}
         </div>
         {!bottomCollapsed && bottomTab === 'console' && (
           <ConsolePanel

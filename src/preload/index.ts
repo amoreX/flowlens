@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { CapturedEvent, TraceData, SourceResponse } from '../shared/types'
+import type { CapturedEvent, TraceData, SourceResponse, DomEventData } from '../shared/types'
 
 const api = {
   loadTargetUrl: (url: string): Promise<{ success: boolean }> => {
@@ -7,6 +7,9 @@ const api = {
   },
   unloadTarget: (): Promise<{ success: boolean }> => {
     return ipcRenderer.invoke('target:unload')
+  },
+  reloadTarget: (): Promise<{ success: boolean; reason?: string }> => {
+    return ipcRenderer.invoke('target:reload')
   },
   getAllTraces: (): Promise<TraceData[]> => {
     return ipcRenderer.invoke('trace:get-all')
@@ -22,6 +25,11 @@ const api = {
   },
   setSplitRatio: (ratio: number): Promise<{ success: boolean }> => {
     return ipcRenderer.invoke('target:set-split', ratio)
+  },
+  highlightDomTarget: (
+    data: DomEventData
+  ): Promise<{ success: boolean; reason?: string }> => {
+    return ipcRenderer.invoke('target:highlight-dom', data)
   },
   onTraceEvent: (callback: (event: CapturedEvent) => void): (() => void) => {
     const handler = (_event: Electron.IpcRendererEvent, data: CapturedEvent): void => {

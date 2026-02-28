@@ -9,6 +9,7 @@ interface SourceCodePanelProps {
   hitMap: SourceHitMap
   focusedEvent: CapturedEvent | null
   focusedTraceEvents?: CapturedEvent[]
+  onNavigateToTraceEvent?: (eventId: string) => void
 }
 
 function parseEventFrames(event: CapturedEvent): SourceLocation[] {
@@ -53,7 +54,12 @@ function translateHitLines<T extends { count: number }>(
   return out
 }
 
-export function SourceCodePanel({ hitMap, focusedEvent, focusedTraceEvents }: SourceCodePanelProps) {
+export function SourceCodePanel({
+  hitMap,
+  focusedEvent,
+  focusedTraceEvents,
+  onNavigateToTraceEvent
+}: SourceCodePanelProps) {
   if (focusedEvent && focusedTraceEvents) {
     return (
       <FocusedSourceView
@@ -61,6 +67,7 @@ export function SourceCodePanel({ hitMap, focusedEvent, focusedTraceEvents }: So
         traceEvents={focusedTraceEvents}
         sourceCache={hitMap.sourceCache}
         fetchSourceIfNeeded={hitMap.fetchSourceIfNeeded}
+        onNavigateToTraceEvent={onNavigateToTraceEvent}
       />
     )
   }
@@ -153,6 +160,7 @@ interface FocusedSourceViewProps {
   traceEvents: CapturedEvent[]
   sourceCache: Map<string, SourceFileCache>
   fetchSourceIfNeeded: (filePath: string) => void
+  onNavigateToTraceEvent?: (eventId: string) => void
 }
 
 interface TraceHighlights {
@@ -219,7 +227,39 @@ function computeTraceHighlights(
   return { files, fileOrder }
 }
 
-function FocusedSourceView({ event, traceEvents, sourceCache, fetchSourceIfNeeded }: FocusedSourceViewProps) {
+function findNearestEventForFile(
+  traceEvents: CapturedEvent[],
+  currentEventId: string,
+  filePath: string
+): CapturedEvent | null {
+  if (traceEvents.length === 0) return null
+  const currentIndex = traceEvents.findIndex((ev) => ev.id === currentEventId)
+  if (currentIndex < 0) return null
+
+  // Prefer nearest event in either direction so tab clicks feel predictable while stepping.
+  for (let distance = 0; distance < traceEvents.length; distance++) {
+    const prev = currentIndex - distance
+    if (prev >= 0) {
+      const frames = parseEventFrames(traceEvents[prev])
+      if (frames.some((f) => f.filePath === filePath)) return traceEvents[prev]
+    }
+    const next = currentIndex + distance
+    if (next < traceEvents.length && next !== prev) {
+      const frames = parseEventFrames(traceEvents[next])
+      if (frames.some((f) => f.filePath === filePath)) return traceEvents[next]
+    }
+  }
+
+  return null
+}
+
+function FocusedSourceView({
+  event,
+  traceEvents,
+  sourceCache,
+  fetchSourceIfNeeded,
+  onNavigateToTraceEvent
+}: FocusedSourceViewProps) {
   const frames = useMemo(() => parseEventFrames(event), [event.id])
   const [activeFrameIndex, setActiveFrameIndex] = useState(0)
   const [fileOverride, setFileOverride] = useState<string | null>(null)
@@ -331,6 +371,13 @@ function FocusedSourceView({ event, traceEvents, sourceCache, fetchSourceIfNeede
               if (idx >= 0) {
                 setActiveFrameIndex(idx)
                 setFileOverride(null)
+                return
+              }
+
+              const nearestEvent = findNearestEventForFile(traceEvents, event.id, fp)
+              if (nearestEvent && onNavigateToTraceEvent) {
+                onNavigateToTraceEvent(nearestEvent.id)
+                setFileOverride(fp)
               } else {
                 setFileOverride(fp)
               }

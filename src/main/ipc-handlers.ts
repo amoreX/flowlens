@@ -1,8 +1,15 @@
 import { ipcMain } from 'electron'
 import { TraceCorrelationEngine } from './trace-correlation-engine'
-import { createTargetView, destroyTargetView, setTargetSplitRatio } from './target-view'
+import {
+  createTargetView,
+  destroyTargetView,
+  setTargetSplitRatio,
+  highlightDomTarget,
+  reloadTargetView
+} from './target-view'
 import { fetchSourceFile, clearSourceCache } from './source-fetcher'
 import { getConnectedClientCount } from './ws-server'
+import type { DomEventData } from '../shared/types'
 
 export function registerIpcHandlers(traceEngine: TraceCorrelationEngine): void {
   ipcMain.handle('target:load-url', (_event, url: string) => {
@@ -37,6 +44,14 @@ export function registerIpcHandlers(traceEngine: TraceCorrelationEngine): void {
   ipcMain.handle('target:set-split', (_event, ratio: number) => {
     setTargetSplitRatio(ratio)
     return { success: true }
+  })
+
+  ipcMain.handle('target:highlight-dom', (_event, data: DomEventData) => {
+    return highlightDomTarget(data)
+  })
+
+  ipcMain.handle('target:reload', () => {
+    return reloadTargetView()
   })
 
   // SDK mode handlers

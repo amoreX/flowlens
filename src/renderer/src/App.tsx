@@ -4,22 +4,38 @@ import { TracePage } from './pages/TracePage'
 
 type AppMode = 'onboarding' | 'trace' | 'sdk-listening'
 
+function normalizeTargetUrl(raw: string): string | null {
+  const trimmed = raw.trim()
+  if (!trimmed || /\s/.test(trimmed)) return null
+
+  const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
+  let parsed: URL
+  try {
+    parsed = new URL(withProtocol)
+  } catch {
+    return null
+  }
+
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null
+  return parsed.href
+}
+
 export default function App() {
   const [mode, setMode] = useState<AppMode>('onboarding')
-  const [targetUrl, setTargetUrl] = useState('')
+  const [toolbarUrl, setToolbarUrl] = useState('')
   const [splitRatio, setSplitRatio] = useState(0.55)
   const [draggingSplit, setDraggingSplit] = useState(false)
   const [sdkConnections, setSdkConnections] = useState(0)
 
   const handleLaunch = useCallback(async (url: string) => {
     await window.flowlens.loadTargetUrl(url)
-    setTargetUrl(url)
+    setToolbarUrl(url)
     setMode('trace')
   }, [])
 
   const handleStop = useCallback(async () => {
     await window.flowlens.unloadTarget()
-    setTargetUrl('')
+    setToolbarUrl('')
     setMode('onboarding')
   }, [])
 
@@ -41,6 +57,26 @@ export default function App() {
       setSdkConnections(count)
     })
     return unsub
+  }, [])
+
+  useEffect(() => {
+    const unsub = window.flowlens.onTargetLoaded((url: string) => {
+      setToolbarUrl(url)
+    })
+    return unsub
+  }, [])
+
+  const handleToolbarSubmit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault()
+    const normalized = normalizeTargetUrl(toolbarUrl)
+    if (!normalized) return
+    await window.flowlens.loadTargetUrl(normalized)
+    setToolbarUrl(normalized)
+    setMode('trace')
+  }, [toolbarUrl])
+
+  const handleRefresh = useCallback(async () => {
+    await window.flowlens.reloadTarget()
   }, [])
 
   const onSplitDragStart = useCallback((e: React.MouseEvent) => {
@@ -83,6 +119,29 @@ export default function App() {
     <div className={`flowlens-app mode-${mode}`} style={traceStyle}>
       <div className="drag-region" />
       {mode === 'trace' && (
+        <form className="target-toolbar no-drag" style={{ width: `${splitRatio * 100}%` }} onSubmit={handleToolbarSubmit}>
+          <input
+            type="text"
+            className="target-toolbar-url no-drag"
+            placeholder="https://example.com"
+            value={toolbarUrl}
+            onChange={(e) => setToolbarUrl(e.target.value)}
+            spellCheck={false}
+            autoCorrect="off"
+            autoComplete="off"
+          />
+          <button type="submit" className="target-toolbar-go no-drag">
+            Go
+          </button>
+          <button type="button" className="target-toolbar-refresh no-drag" onClick={handleRefresh}>
+            Refresh
+          </button>
+          <button type="button" className="target-toolbar-exit no-drag" onClick={handleStop}>
+            Exit
+          </button>
+        </form>
+      )}
+      {mode === 'trace' && (
         <div
           className={`split-resize-handle${draggingSplit ? ' dragging' : ''}`}
           onMouseDown={onSplitDragStart}
@@ -92,7 +151,6 @@ export default function App() {
         <OnboardingPage onLaunch={handleLaunch} onSdkMode={handleSdkMode} />
       ) : (
         <TracePage
-          targetUrl={mode === 'sdk-listening' ? '' : targetUrl}
           onStop={mode === 'sdk-listening' ? handleSdkStop : handleStop}
           sdkMode={mode === 'sdk-listening'}
           sdkConnections={sdkConnections}

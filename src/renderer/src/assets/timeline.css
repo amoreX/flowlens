@@ -200,6 +200,20 @@
   max-width: 220px;
 }
 
+.bottom-header-note {
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  color: var(--amber);
+  background: rgba(251, 191, 36, 0.14);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  border-radius: var(--radius-full);
+  padding: 2px 8px;
+  white-space: nowrap;
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .bottom-header-stop {
   font-family: var(--font-sans);
   font-size: 0.55rem;

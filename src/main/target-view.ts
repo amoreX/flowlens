@@ -4,10 +4,14 @@ import { WebContentsView } from 'electron'
 import { clearSourceCache } from './source-fetcher'
 import { getMainWindow } from './window-manager'
 import { TraceCorrelationEngine } from './trace-correlation-engine'
+import type { DomEventData } from '../shared/types'
 
 let targetView: WebContentsView | null = null
 let splitRatio = 0.55
 let instrumentationScriptCache: string | null = null
+const WINDOW_DRAG_REGION_HEIGHT = 32
+const TARGET_TOOLBAR_HEIGHT = 40
+const TARGET_TOP_INSET = WINDOW_DRAG_REGION_HEIGHT + TARGET_TOOLBAR_HEIGHT
 
 function resolveInstrumentationBundlePath(): string | null {
   const candidates = [
@@ -97,6 +101,10 @@ export function createTargetView(
     targetView?.webContents.executeJavaScript(getInstrumentationScript())
   })
 
+  targetView.webContents.on('did-navigate', (_event, pageUrl) => {
+    mainWindow.webContents.send('target:loaded', pageUrl)
+  })
+
   targetView.webContents.on('did-navigate-in-page', (_event, pageUrl) => {
     const navEvent = {
       id: Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 9),
@@ -108,12 +116,10 @@ export function createTargetView(
     }
     traceEngine.ingestEvent(navEvent)
     mainWindow.webContents.send('trace:event-received', navEvent)
+    mainWindow.webContents.send('target:loaded', pageUrl)
   })
 
   targetView.webContents.loadURL(url)
-
-  // Notify renderer that target is loaded
-  mainWindow.webContents.send('target:loaded', url)
 
   return targetView
 }
@@ -123,7 +129,8 @@ function updateTargetBounds(): void {
   if (!mainWindow || !targetView) return
   const { width, height } = mainWindow.getContentBounds()
   const targetWidth = Math.floor(width * splitRatio)
-  targetView.setBounds({ x: 0, y: 0, width: targetWidth, height })
+  const targetHeight = Math.max(0, height - TARGET_TOP_INSET)
+  targetView.setBounds({ x: 0, y: TARGET_TOP_INSET, width: targetWidth, height: targetHeight })
 }
 
 export function setTargetSplitRatio(ratio: number): void {
@@ -145,4 +152,147 @@ export function destroyTargetView(): void {
 
 export function getTargetView(): WebContentsView | null {
   return targetView
+}
+
+export function reloadTargetView(): { success: boolean; reason?: string } {
+  if (!targetView) {
+    return { success: false, reason: 'No target view is active' }
+  }
+  targetView.webContents.reload()
+  return { success: true }
+}
+
+export interface TargetHighlightResult {
+  success: boolean
+  reason?: string
+}
+
+export async function highlightDomTarget(data: DomEventData): Promise<TargetHighlightResult> {
+  if (!targetView) {
+    return { success: false, reason: 'No embedded target is active (open a URL mode trace first)' }
+  }
+  if (targetView.webContents.isLoadingMainFrame()) {
+    return { success: false, reason: 'Target page is still loading' }
+  }
+
+  const payload = JSON.stringify({
+    tagName: data.tagName || '',
+    id: data.id || '',
+    className: data.className || '',
+    textContent: data.textContent || '',
+    target: data.target || ''
+  })
+
+  const script = `(() => {
+  const data = ${payload};
+  const normalize = (v) => (typeof v === 'string' ? v.trim() : '');
+  const tag = normalize(data.tagName).toLowerCase();
+  const id = normalize(data.id);
+  const className = normalize(data.className);
+  const textContent = normalize(data.textContent);
+  const target = normalize(data.target);
+
+  const makeClassSelector = (value) => value
+    .split(/\\s+/)
+    .filter(Boolean)
+    .map((c) => '.' + c.replace(/[^a-zA-Z0-9_-]/g, ''))
+    .join('');
+
+  const candidates = [];
+  const seen = new Set();
+  const push = (el) => {
+    if (!el || seen.has(el)) return;
+    seen.add(el);
+    candidates.push(el);
+  };
+
+  if (id) {
+    push(document.getElementById(id));
+  }
+
+  if (tag && className) {
+    try {
+      const cls = makeClassSelector(className);
+      if (cls) {
+        document.querySelectorAll(tag + cls).forEach(push);
+      }
+    } catch {}
+  }
+
+  if (target) {
+    try {
+      if (/^[a-zA-Z][a-zA-Z0-9:_-]*(#[a-zA-Z0-9:_-]+)?(\\.[a-zA-Z0-9:_-]+)*$/.test(target)) {
+        const selector = target.replace(/(^|\\s)\\./g, '$1.');
+        document.querySelectorAll(selector).forEach(push);
+      }
+    } catch {}
+  }
+
+  if (tag) {
+    document.querySelectorAll(tag).forEach(push);
+  }
+
+  let picked = null;
+  if (textContent) {
+    const lower = textContent.toLowerCase();
+    picked = candidates.find((el) => {
+      const text = (el.textContent || '').trim().toLowerCase();
+      return text === lower || (text && text.includes(lower));
+    }) || null;
+  }
+
+  if (!picked) {
+    picked = candidates.find((el) => el.getClientRects && el.getClientRects().length > 0) || candidates[0] || null;
+  }
+
+  if (!picked) {
+    return { success: false, reason: 'Element not found in currently rendered page' };
+  }
+
+  const styleId = '__flowlens_target_highlight_style';
+  if (!document.getElementById(styleId)) {
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = \`
+      .__flowlens_target_highlight {
+        outline: 3px solid #00e5ff !important;
+        outline-offset: 2px !important;
+        box-shadow: 0 0 0 4px rgba(0, 229, 255, 0.2), 0 0 18px rgba(0, 229, 255, 0.45) !important;
+        border-radius: 6px !important;
+        transition: outline-color 180ms ease, box-shadow 180ms ease !important;
+      }
+    \`;
+    document.head.appendChild(style);
+  }
+
+  const w = window;
+  if (typeof w.__flowlens_clear_target_highlight === 'function') {
+    w.__flowlens_clear_target_highlight();
+  }
+
+  picked.classList.add('__flowlens_target_highlight');
+  picked.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' });
+
+  const clear = () => {
+    try {
+      picked.classList.remove('__flowlens_target_highlight');
+    } catch {}
+    if (w.__flowlens_clear_target_highlight === clear) {
+      w.__flowlens_clear_target_highlight = null;
+    }
+  };
+
+  w.__flowlens_clear_target_highlight = clear;
+  setTimeout(clear, 2200);
+  return { success: true };
+})()`
+
+  try {
+    const result = await targetView.webContents.executeJavaScript(script)
+    const res = result as TargetHighlightResult | undefined
+    if (res?.success) return { success: true }
+    return { success: false, reason: res?.reason || 'Highlight script did not find a matching element' }
+  } catch {
+    return { success: false, reason: 'Cannot access target page context (possibly navigated or restricted)' }
+  }
 }
