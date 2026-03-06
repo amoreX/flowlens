@@ -7,7 +7,7 @@ This guide reflects the current codebase, including the package-based frontend i
 FlowLens runs in two modes:
 
 - **Embedded mode**: load a URL in a sandboxed `WebContentsView`.
-- **SDK mode**: no embedded page; external apps send events via `@flowlens/web` and `@flowlens/node`.
+- **SDK mode**: no embedded page; external apps send events via `@nihal/flowlens-web` and `@nihal/flowlens-node`.
 
 At app boot, the main process starts:
 
@@ -44,8 +44,8 @@ src/
     assets/
   shared/types.ts
 packages/
-  web/    (@flowlens/web)
-  node/   (@flowlens/node)
+  web/    (@nihal/flowlens-web)
+  node/   (@nihal/flowlens-node)
 ```
 
 ---
@@ -82,9 +82,9 @@ packages/
 ## Event Flow
 
 ```text
-frontend (@flowlens/web) --WS:9230--> ws-server.ts --\
+frontend (@nihal/flowlens-web) --WS:9230--> ws-server.ts --\
                                                     +--> trace-engine --> renderer
-backend (@flowlens/node) ----HTTP:9229--> span-collector --/
+backend (@nihal/flowlens-node) ----HTTP:9229--> span-collector --/
 ```
 
 ### Frontend event types
@@ -117,8 +117,8 @@ Instead, `target-view.ts` injects the built package bundle and initializes `Flow
 For safety:
 
 - If bundle is missing, target view logs a warning:
-  - `@flowlens/web browser bundle not found`
-- Source parser filters package frames (`@flowlens/web`, `__flowlens_sdk__`) so UI shows user code.
+  - `@nihal/flowlens-web browser bundle not found`
+- Source parser filters package frames (`@nihal/flowlens-web`, `__flowlens_sdk__`) so UI shows user code.
 
 ---
 
@@ -158,8 +158,8 @@ npm run build
 
 Current script behavior:
 
-- `npm run dev` builds `@flowlens/web` first (`build:web-sdk`) then runs Electron dev.
-- `npm run build` builds `@flowlens/web`, typechecks, then builds Electron app.
+- `npm run dev` builds `@nihal/flowlens-web` first (`build:web-sdk`) then runs Electron dev.
+- `npm run build` builds `@nihal/flowlens-web`, typechecks, then builds Electron app.
 
 ---
 

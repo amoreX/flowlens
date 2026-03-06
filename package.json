@@ -10,7 +10,7 @@
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "prepare:electron": "node ./scripts/ensure-electron-binary.js",
-    "build:web-sdk": "npm run build --workspace @flowlens/web",
+    "build:web-sdk": "npm run build --workspace @nihal/flowlens-web",
     "start": "npm run prepare:electron && electron-vite preview",
     "dev": "npm run build:web-sdk && npm run prepare:electron && electron-vite dev",
     "build": "npm run build:web-sdk && npm run typecheck && npm run prepare:electron && electron-vite build",

@@ -5,14 +5,14 @@ The plan is now implemented and superseded by live docs.
 
 ## Current Status
 
-- `@flowlens/node` is implemented in `packages/node`
-- `@flowlens/web` is implemented in `packages/web`
+- `@nihal/flowlens-node` is implemented in `packages/node`
+- `@nihal/flowlens-web` is implemented in `packages/web`
 - Embedded mode now injects the built web SDK bundle (`dist/browser.global.js`)
 - SDK mode is fully supported in the desktop app UI
 
 ## Implemented Backend SDK API
 
-Use these exports from `@flowlens/node`:
+Use these exports from `@nihal/flowlens-node`:
 
 - `flowlens(config)` — Express-style middleware
 - `flowlensFastify(config)` — Fastify plugin

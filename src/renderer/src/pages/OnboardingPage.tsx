@@ -44,7 +44,7 @@ export function OnboardingPage({ onLaunch, onSdkMode }: OnboardingPageProps) {
 
         <button className="sdk-mode-btn no-drag" onClick={onSdkMode}>
           SDK Mode
-          <span className="sdk-mode-btn-sub">Connect via @flowlens/web</span>
+          <span className="sdk-mode-btn-sub">Connect via @nihal/flowlens-web</span>
         </button>
       </div>
     </div>

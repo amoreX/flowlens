@@ -119,7 +119,11 @@ export default function App() {
     <div className={`flowlens-app mode-${mode}`} style={traceStyle}>
       <div className="drag-region" />
       {mode === 'trace' && (
-        <form className="target-toolbar no-drag" style={{ width: `${splitRatio * 100}%` }} onSubmit={handleToolbarSubmit}>
+        <form
+          className="target-toolbar no-drag"
+          style={{ width: `calc(${splitRatio * 100}% - 92px)`, left: '92px' }}
+          onSubmit={handleToolbarSubmit}
+        >
           <input
             type="text"
             className="target-toolbar-url no-drag"

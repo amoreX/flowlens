@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-FlowLens is a developer-focused debugging and tracing desktop application built with Electron. Users paste a URL, Electron loads it in an embedded browser, and an auto-injected browser bundle (built from `@flowlens/web`) captures every UI event, network call, console log, and error — zero code changes required. A trace correlation engine groups them into causal execution traces displayed in a real-time timeline UI with source code viewing.
+FlowLens is a developer-focused debugging and tracing desktop application built with Electron. Users paste a URL, Electron loads it in an embedded browser, and an auto-injected browser bundle (built from `@nihal/flowlens-web`) captures every UI event, network call, console log, and error — zero code changes required. A trace correlation engine groups them into causal execution traces displayed in a real-time timeline UI with source code viewing.
 
-**Current state:** Working MVP. Core instrumentation, trace correlation, split-view UI, source code panel, console, flow navigation, backend span collection, React state change detection, local source resolution, SDK mode with `@flowlens/web` and `@flowlens/node` packages. See `readme_dev.md` for a comprehensive developer walkthrough and `readme_package.md` for SDK package documentation.
+**Current state:** Working MVP. Core instrumentation, trace correlation, split-view UI, source code panel, console, flow navigation, backend span collection, React state change detection, local source resolution, SDK mode with `@nihal/flowlens-web` and `@nihal/flowlens-node` packages. See `readme_dev.md` for a comprehensive developer walkthrough and `readme_package.md` for SDK package documentation.
 
 ## Tech Stack
 
@@ -14,13 +14,13 @@ FlowLens is a developer-focused debugging and tracing desktop application built 
 - **React 19**, TypeScript 5.7, vanilla CSS with CSS custom properties
 - **uuid**, **ws** (runtime dependencies)
 - **Build:** `npm run dev` (dev with hot reload), `npm run build` (typecheck + production build)
-- **SDK packages:** `packages/web` (`@flowlens/web`) and `packages/node` (`@flowlens/node`) — npm workspaces, built with tsup
+- **SDK packages:** `packages/web` (`@nihal/flowlens-web`) and `packages/node` (`@nihal/flowlens-node`) — npm workspaces, built with tsup
 
 ## Architecture
 
 Three Electron processes communicate via IPC:
 
-- **Main process** — owns the trace correlation engine (in-memory, 500 trace LRU), source file fetcher (filesystem paths + `file://` URLs + HTTP with inline source map extraction, 100-entry LRU cache), span collector (HTTP server on :9229 for backend spans), WebSocket server (:9230 for SDK mode accepting events from `@flowlens/web`), IPC handler registry, and manages both views
+- **Main process** — owns the trace correlation engine (in-memory, 500 trace LRU), source file fetcher (filesystem paths + `file://` URLs + HTTP with inline source map extraction, 100-entry LRU cache), span collector (HTTP server on :9229 for backend spans), WebSocket server (:9230 for SDK mode accepting events from `@nihal/flowlens-web`), IPC handler registry, and manages both views
 - **Target view** (WebContentsView, sandboxed) — loads the user's URL in the left portion of the window; injects `packages/web/dist/browser.global.js` and calls `FlowLensWeb.init()` on page load
 - **Renderer** (BrowserWindow) — React UI in the right portion; subscribes to live event stream and renders timeline, source code, and console
 
@@ -28,9 +28,9 @@ Three Electron processes communicate via IPC:
 
 **Split-view (trace mode):** Target site on left, React UI on right. Ratio is resizable via drag handle (default 55/45, clamped 20–80%). Controlled by `splitRatio` in `target-view.ts`, updated via `target:set-split` IPC.
 
-**Data flow:** User enters URL → main creates WebContentsView → page loads → `@flowlens/web` browser bundle injected and initialized → SDK monkey-patches capture events → events stream over WS (:9230) → main ingests into trace engine + forwards to renderer → React hooks update state → UI re-renders
+**Data flow:** User enters URL → main creates WebContentsView → page loads → `@nihal/flowlens-web` browser bundle injected and initialized → SDK monkey-patches capture events → events stream over WS (:9230) → main ingests into trace engine + forwards to renderer → React hooks update state → UI re-renders
 
-### Instrumentation (`@flowlens/web` bundle in `target-view.ts`)
+### Instrumentation (`@nihal/flowlens-web` bundle in `target-view.ts`)
 
 Injected into every loaded page via `browser.global.js`. Monkey-patches:
 - **DOM events** (click, input, submit, change, focus, blur) — click/submit start a **new trace ID**; others use current

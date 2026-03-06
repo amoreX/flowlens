@@ -5,19 +5,19 @@ FlowLens is an Electron desktop debugging tool for tracing frontend and backend 
 You can use it in two ways:
 
 - **Embedded mode**: paste a URL and FlowLens loads your app in an embedded browser.
-- **SDK mode**: instrument your own apps directly with `@flowlens/web` and `@flowlens/node`.
+- **SDK mode**: instrument your own apps directly with `@nihal/flowlens-web` and `@nihal/flowlens-node`.
 
 ## How It Works
 
 ### Embedded mode
 
-On page load, FlowLens injects the browser bundle built from `@flowlens/web` into the target view and calls `FlowLensWeb.init()`.  
+On page load, FlowLens injects the browser bundle built from `@nihal/flowlens-web` into the target view and calls `FlowLensWeb.init()`.  
 That captures DOM events, network calls, console logs, runtime errors, and React state changes, then streams events to the built-in WebSocket server (`ws://localhost:9230`).
 
 ### SDK mode
 
-- `@flowlens/web` (frontend) sends events over WS `:9230`
-- `@flowlens/node` (backend) posts spans to HTTP collector `:9229`
+- `@nihal/flowlens-web` (frontend) sends events over WS `:9230`
+- `@nihal/flowlens-node` (backend) posts spans to HTTP collector `:9229`
 
 Both feeds are correlated by `traceId` and rendered in the same timeline.
 
@@ -60,8 +60,8 @@ src/
   renderer/src/    React UI
   shared/          Shared event and trace types
 packages/
-  web/             @flowlens/web frontend instrumentation SDK
-  node/            @flowlens/node backend span SDK
+  web/             @nihal/flowlens-web frontend instrumentation SDK
+  node/            @nihal/flowlens-node backend span SDK
 ```
 
 - Dev architecture details: `readme_dev.md`

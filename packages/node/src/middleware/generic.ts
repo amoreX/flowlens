@@ -9,7 +9,7 @@ type NodeHandler = (req: IncomingMessage, res: ServerResponse) => void
  * Wraps a raw Node.js HTTP handler with FlowLens tracing.
  *
  * ```ts
- * import { wrapHandler } from '@flowlens/node'
+ * import { wrapHandler } from '@nihal/flowlens-node'
  * const handler = wrapHandler((req, res) => { ... }, { serviceName: 'my-api' })
  * http.createServer(handler)
  * ```

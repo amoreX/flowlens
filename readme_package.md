@@ -2,8 +2,8 @@
 
 FlowLens uses two SDKs:
 
-- `@flowlens/web` for frontend/browser instrumentation
-- `@flowlens/node` for backend span reporting
+- `@nihal/flowlens-web` for frontend/browser instrumentation
+- `@nihal/flowlens-node` for backend span reporting
 
 These power **SDK mode** and are also used in **embedded mode** (the desktop app injects the built web bundle).
 
@@ -13,8 +13,8 @@ These power **SDK mode** and are also used in **embedded mode** (the desktop app
 
 ```text
 packages/
-  web/   @flowlens/web
-  node/  @flowlens/node
+  web/   @nihal/flowlens-web
+  node/  @nihal/flowlens-node
 ```
 
 Root workspace uses:
@@ -28,8 +28,8 @@ Root workspace uses:
 ## Data Pipeline
 
 ```text
-@flowlens/web  -- WebSocket (:9230) --> src/main/ws-server.ts
-@flowlens/node -- HTTP POST (:9229) --> src/main/span-collector.ts
+@nihal/flowlens-web  -- WebSocket (:9230) --> src/main/ws-server.ts
+@nihal/flowlens-node -- HTTP POST (:9229) --> src/main/span-collector.ts
                                       --> TraceCorrelationEngine
                                       --> renderer via trace:event-received
 ```
@@ -38,18 +38,18 @@ FlowLens correlates everything by `traceId` (propagated through `X-FlowLens-Trac
 
 ---
 
-## `@flowlens/web`
+## `@nihal/flowlens-web`
 
 ### Install
 
 ```bash
-npm install @flowlens/web
+npm install @nihal/flowlens-web
 ```
 
 ### Basic usage
 
 ```ts
-import { init } from '@flowlens/web'
+import { init } from '@nihal/flowlens-web'
 
 if (import.meta.env.DEV) {
   init()
@@ -104,12 +104,12 @@ The desktop app injects this IIFE in embedded mode.
 
 ---
 
-## `@flowlens/node`
+## `@nihal/flowlens-node`
 
 ### Install
 
 ```bash
-npm install @flowlens/node
+npm install @nihal/flowlens-node
 ```
 
 ### Adapters
@@ -151,9 +151,9 @@ Collector expands one span into three `backend-span` events (`request`, `handler
 | Topic | Embedded mode | SDK mode |
 |---|---|---|
 | Frontend instrumentation | Injects `dist/browser.global.js` in target view | You call `init()` in your app |
-| Backend spans | Optional manual posts or SDK | `@flowlens/node` middleware |
+| Backend spans | Optional manual posts or SDK | `@nihal/flowlens-node` middleware |
 | Renderer layout | Split view with embedded page | Full-width tracing UI |
-| Transport | WS + IPC pipeline in desktop app | WS (`@flowlens/web`) + HTTP (`@flowlens/node`) |
+| Transport | WS + IPC pipeline in desktop app | WS (`@nihal/flowlens-web`) + HTTP (`@nihal/flowlens-node`) |
 
 ---
 
@@ -161,17 +161,17 @@ Collector expands one span into three `backend-span` events (`request`, `handler
 
 ```bash
 # Build individual packages
-npm run --workspace @flowlens/web build
-npm run --workspace @flowlens/node build
+npm run --workspace @nihal/flowlens-web build
+npm run --workspace @nihal/flowlens-node build
 
 # Watch
-npm run --workspace @flowlens/web dev
-npm run --workspace @flowlens/node dev
+npm run --workspace @nihal/flowlens-web dev
+npm run --workspace @nihal/flowlens-node dev
 ```
 
 Root scripts:
 
-- `npm run build:web-sdk` builds `@flowlens/web` first
+- `npm run build:web-sdk` builds `@nihal/flowlens-web` first
 - `npm run dev` and `npm run build` call this automatically
 
 ---
@@ -179,7 +179,7 @@ Root scripts:
 ## Quick End-to-End Setup
 
 1. Start FlowLens desktop: `npm run dev`
-2. Frontend: install `@flowlens/web`, call `init()` in dev
-3. Backend: install `@flowlens/node`, attach middleware/plugin
+2. Frontend: install `@nihal/flowlens-web`, call `init()` in dev
+3. Backend: install `@nihal/flowlens-node`, attach middleware/plugin
 4. In FlowLens onboarding, click **SDK Mode**
 5. Use your app; traces appear with frontend and backend events correlated

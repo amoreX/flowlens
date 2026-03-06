@@ -9,9 +9,8 @@ import type { DomEventData } from '../shared/types'
 let targetView: WebContentsView | null = null
 let splitRatio = 0.55
 let instrumentationScriptCache: string | null = null
-const WINDOW_DRAG_REGION_HEIGHT = 32
-const TARGET_TOOLBAR_HEIGHT = 40
-const TARGET_TOP_INSET = WINDOW_DRAG_REGION_HEIGHT + TARGET_TOOLBAR_HEIGHT
+const WINDOW_DRAG_REGION_HEIGHT = 38
+const TARGET_TOP_INSET = WINDOW_DRAG_REGION_HEIGHT
 
 function resolveInstrumentationBundlePath(): string | null {
   const candidates = [
@@ -35,7 +34,7 @@ function getInstrumentationScript(): string {
 
   const bundlePath = resolveInstrumentationBundlePath()
   if (!bundlePath) {
-    instrumentationScriptCache = `console.warn('[FlowLens] @flowlens/web browser bundle not found. Run: npm run build --workspace @flowlens/web');`
+    instrumentationScriptCache = `console.warn('[FlowLens] @nihal/flowlens-web browser bundle not found. Run: npm run build --workspace @nihal/flowlens-web');`
     return instrumentationScriptCache
   }
 
@@ -58,7 +57,7 @@ function getInstrumentationScript(): string {
       detectReactState: true
     })
   } catch (err) {
-    console.error('[FlowLens] Failed to initialize @flowlens/web instrumentation', err)
+    console.error('[FlowLens] Failed to initialize @nihal/flowlens-web instrumentation', err)
   }
 })();
 //# sourceURL=__flowlens_sdk__`

@@ -1,5 +1,5 @@
 {
-  "name": "@flowlens/web",
+  "name": "@nihal/flowlens-web",
   "version": "0.1.0",
   "description": "FlowLens frontend instrumentation SDK — auto-traces DOM events, fetch, XHR, console, errors, and React state changes",
   "main": "./dist/index.js",

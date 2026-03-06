@@ -10,8 +10,8 @@ export function captureStack(): string | undefined {
   const filtered = lines.filter((line) => {
     // Keep the "Error" header line
     if (!line.trimStart().startsWith('at ')) return true
-    // Strip @flowlens/node internals
-    if (line.includes('@flowlens/node')) return false
+    // Strip @nihal/flowlens-node internals
+    if (line.includes('@nihal/flowlens-node')) return false
     if (line.includes('__flowlens_sdk__')) return false
     if (line.includes('node_modules')) return false
     return true

@@ -11,57 +11,28 @@
 .flowlens-logo-svg {
   width: 20px;
   height: 20px;
-  color: var(--text-secondary);
+  color: var(--accent);
   overflow: visible;
-}
-
-.logo-lens {
-  stroke: var(--blue);
-  opacity: 0.6;
   transition: all 0.3s ease;
 }
 
-.logo-core {
-  fill: var(--blue);
+.logo-ring {
+  stroke: var(--accent);
+  opacity: 0.5;
+  transition: opacity 0.3s ease;
+}
+
+.logo-blade {
+  stroke: var(--accent);
+  opacity: 0.7;
+  transition: opacity 0.3s ease;
+}
+
+.flowlens-logo:hover .logo-ring {
   opacity: 0.8;
-  animation: logoCorePulse 3s infinite ease-in-out;
 }
 
-.logo-wave {
-  stroke: var(--accent);
-  stroke-dasharray: 40;
-  stroke-dashoffset: 40;
-  animation: logoWaveFlow 4s infinite linear;
-  filter: drop-shadow(0 0 4px var(--accent-dim));
-}
-
-@keyframes logoCorePulse {
-  0%, 100% {
-    r: 2.5;
-    opacity: 0.5;
-    filter: drop-shadow(0 0 2px var(--blue));
-  }
-  50% {
-    r: 3.5;
-    opacity: 1;
-    filter: drop-shadow(0 0 6px var(--blue));
-  }
-}
-
-@keyframes logoWaveFlow {
-  0% {
-    stroke-dashoffset: 40;
-  }
-  40% {
-    stroke-dashoffset: 0;
-  }
-  100% {
-    stroke-dashoffset: -40;
-  }
-}
-
-.flowlens-logo:hover .logo-lens {
-  stroke: var(--accent);
+.flowlens-logo:hover .logo-blade {
   opacity: 1;
 }
 

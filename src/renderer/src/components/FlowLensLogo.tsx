@@ -4,33 +4,25 @@ export function FlowLensLogo() {
   return (
     <div className="flowlens-logo">
       <svg
-        width="24"
-        height="24"
+        width="20"
+        height="20"
         viewBox="0 0 24 24"
         fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
         xmlns="http://www.w3.org/2000/svg"
         className="flowlens-logo-svg"
       >
-        {/* Outer Lens shape */}
-        <path
-          d="M2 12C2 12 7 4 12 4C17 4 22 12 22 12C22 12 17 20 12 20C7 20 2 12 2 12Z"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="logo-lens"
-        />
-        {/* Inner pulsing core */}
-        <circle cx="12" cy="12" r="3" fill="currentColor" className="logo-core" />
-        {/* Data wave line cutting through */}
-        <path
-          d="M0 12C4 8 8 16 12 12C16 8 20 16 24 12"
-          stroke="var(--accent)"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="logo-wave"
-        />
+        {/* Aperture blades */}
+        <circle cx="12" cy="12" r="10" className="logo-ring" />
+        <path d="M14.31 8l5.74 9.94" className="logo-blade" />
+        <path d="M9.69 8h11.48" className="logo-blade" />
+        <path d="M7.38 12l5.74-9.94" className="logo-blade" />
+        <path d="M9.69 16L3.95 6.06" className="logo-blade" />
+        <path d="M14.31 16H2.83" className="logo-blade" />
+        <path d="M16.62 12l-5.74 9.94" className="logo-blade" />
       </svg>
       <span className="flowlens-logo-text">FlowLens</span>
     </div>

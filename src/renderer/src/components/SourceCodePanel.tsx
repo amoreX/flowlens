@@ -227,32 +227,6 @@ function computeTraceHighlights(
   return { files, fileOrder }
 }
 
-function findNearestEventForFile(
-  traceEvents: CapturedEvent[],
-  currentEventId: string,
-  filePath: string
-): CapturedEvent | null {
-  if (traceEvents.length === 0) return null
-  const currentIndex = traceEvents.findIndex((ev) => ev.id === currentEventId)
-  if (currentIndex < 0) return null
-
-  // Prefer nearest event in either direction so tab clicks feel predictable while stepping.
-  for (let distance = 0; distance < traceEvents.length; distance++) {
-    const prev = currentIndex - distance
-    if (prev >= 0) {
-      const frames = parseEventFrames(traceEvents[prev])
-      if (frames.some((f) => f.filePath === filePath)) return traceEvents[prev]
-    }
-    const next = currentIndex + distance
-    if (next < traceEvents.length && next !== prev) {
-      const frames = parseEventFrames(traceEvents[next])
-      if (frames.some((f) => f.filePath === filePath)) return traceEvents[next]
-    }
-  }
-
-  return null
-}
-
 function FocusedSourceView({
   event,
   traceEvents,
@@ -357,7 +331,9 @@ function FocusedSourceView({
   const translatedTraceLines = fileHighlights
     ? translateHitLines(fileHighlights.lines, lineMap)
     : null
-  const translatedFocusLine = activeFrame ? mapLine(activeFrame.line, lineMap) : null
+  const translatedFocusLine = (activeFrame && activeFrame.filePath === viewingFile)
+    ? mapLine(activeFrame.line, lineMap)
+    : null
 
   return (
     <div className="source-panel">
@@ -371,13 +347,6 @@ function FocusedSourceView({
               if (idx >= 0) {
                 setActiveFrameIndex(idx)
                 setFileOverride(null)
-                return
-              }
-
-              const nearestEvent = findNearestEventForFile(traceEvents, event.id, fp)
-              if (nearestEvent && onNavigateToTraceEvent) {
-                onNavigateToTraceEvent(nearestEvent.id)
-                setFileOverride(fp)
               } else {
                 setFileOverride(fp)
               }

@@ -7,7 +7,7 @@ import { captureStack } from '../stack-capture'
  * Requires `fastify-plugin` as a peer dependency.
  *
  * ```ts
- * import { flowlensFastify } from '@flowlens/node'
+ * import { flowlensFastify } from '@nihal/flowlens-node'
  * app.register(flowlensFastify({ serviceName: 'my-api' }))
  * ```
  */
@@ -101,7 +101,7 @@ export function createFastifyPlugin(config: FlowLensNodeConfig) {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const fp = require('fastify-plugin')
-    return fp(plugin, { name: '@flowlens/node' })
+    return fp(plugin, { name: '@nihal/flowlens-node' })
   } catch {
     return plugin
   }

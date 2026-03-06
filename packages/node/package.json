@@ -1,5 +1,5 @@
 {
-  "name": "@flowlens/node",
+  "name": "@nihal/flowlens-node",
   "version": "0.1.0",
   "description": "FlowLens backend SDK — Express/Fastify/generic middleware for automatic span collection",
   "main": "./dist/index.js",

@@ -154,14 +154,15 @@
 
 /* ── State change row ── */
 .inspector-component-badge {
-  font-size: 0.6rem;
-  font-weight: 700;
-  padding: 0 var(--space-1);
+  font-family: var(--font-sans);
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 1px var(--space-2);
   border-radius: var(--radius-sm);
   text-transform: none;
   flex-shrink: 0;
-  color: var(--green);
-  background: var(--green-bg);
+  color: var(--pink);
+  background: var(--pink-bg);
   white-space: nowrap;
 }
 
@@ -241,9 +242,10 @@
 }
 
 .inspector-status-badge {
-  font-size: 0.6rem;
-  font-weight: 700;
-  padding: 0 var(--space-1);
+  font-family: var(--font-sans);
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 1px var(--space-2);
   border-radius: var(--radius-sm);
   flex-shrink: 0;
   min-width: 28px;

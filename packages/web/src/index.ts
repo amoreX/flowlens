@@ -22,7 +22,7 @@ declare global {
  * window errors, and React state detection. Connects to FlowLens via WebSocket.
  *
  * ```ts
- * import { init } from '@flowlens/web'
+ * import { init } from '@nihal/flowlens-web'
  * if (import.meta.env.DEV) {
  *   init()
  * }
