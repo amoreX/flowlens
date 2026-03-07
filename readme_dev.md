@@ -32,15 +32,36 @@ src/
     source-fetcher.ts
     ipc-handlers.ts
   preload/
-    index.ts
-    target-preload.ts
+    index.ts              (renderer window.flowlens API)
+    index.d.ts            (type declarations)
+    target-preload.ts     (target view bridge)
   renderer/src/
     App.tsx
-    pages/OnboardingPage.tsx
-    pages/TracePage.tsx
+    pages/
+      OnboardingPage.tsx
+      TracePage.tsx
     components/
+      ConsolePanel.tsx
+      EventBadge.tsx        (event type badges used in TraceGroup)
+      EventDetailPanel.tsx
+      FlowLensLogo.tsx
+      FlowNavigator.tsx
+      InspectorPanel.tsx
+      SourceCodePanel.tsx
+      SourceCodeViewer.tsx  (syntax-highlighted code viewer used by EventDetailPanel)
+      StatusBar.tsx         (unused — legacy component)
+      Timeline.tsx
+      TimelineEvent.tsx
+      TraceGroup.tsx
+      UrlInput.tsx          (URL input used by OnboardingPage)
     hooks/
+      useTraceEvents.ts
+      useSourceHitMap.ts
+      useConsoleEntries.ts
+      useInspectorEntries.ts
     utils/
+      stack-parser.ts
+      syntax.ts
     assets/
   shared/types.ts
 packages/
@@ -54,10 +75,11 @@ packages/
 
 ### Main process
 
-- Owns `TraceCorrelationEngine`
+- Owns `TraceCorrelationEngine` (500 trace LRU)
 - Hosts backend span collector (`:9229`)
 - Hosts WS ingestion server (`:9230`)
 - Manages embedded target view and split bounds
+- Source file cache (100-entry, FIFO eviction)
 - Pushes live events to renderer via `trace:event-received`
 
 ### Target view (embedded mode)
@@ -66,16 +88,27 @@ packages/
 - Injects **built bundle** from `packages/web/dist/browser.global.js`
 - Calls `window.FlowLensWeb.init({ endpoint: 'ws://localhost:9230', ... })`
 - Emits SPA navigation events from `did-navigate-in-page`
+- Supports DOM element highlighting via `target:highlight-dom` IPC
 
 ### Renderer
 
 - Timeline + source panel + flow navigator + bottom tabs (Console/Inspector)
-- Bottom header contains Console/Inspector tabs and right-side URL/Exit
+- Bottom header contains Console/Inspector tabs and right-side URL/SDK status/Exit
 - Uses hooks:
-  - `useTraceEvents`
-  - `useSourceHitMap`
-  - `useConsoleEntries`
-  - `useInspectorEntries`
+  - `useTraceEvents` — subscribe-first live stream + snapshot merge, dedup by event.id
+  - `useSourceHitMap` — per-file/line hit tracking, source cache, auto-fetch
+  - `useConsoleEntries` — console/error event filtering (2000 entry cap)
+  - `useInspectorEntries` — state changes + network responses for inspector tab
+
+### App modes
+
+`App.tsx` manages three modes, but only two page components:
+
+| Mode | Page component | Description |
+|------|---------------|-------------|
+| `onboarding` | `OnboardingPage` | URL input + SDK Mode button |
+| `trace` | `TracePage` | Split view — embedded site left, tracing UI right |
+| `sdk-listening` | `TracePage` (with `sdkMode={true}`) | Full-width tracing UI, no embedded page |
 
 ---
 
@@ -111,39 +144,47 @@ Supports `phaseStacks`, `requestStack/handlerStack/responseStack`, and fallback 
 
 ## Instrumentation Notes
 
-FlowLens no longer uses the old large inline IIFE patch logic.  
+FlowLens no longer uses the old large inline IIFE patch logic.
 Instead, `target-view.ts` injects the built package bundle and initializes `FlowLensWeb`.
 
 For safety:
 
 - If bundle is missing, target view logs a warning:
   - `@nihal/flowlens-web browser bundle not found`
-- Source parser filters package frames (`@nihal/flowlens-web`, `__flowlens_sdk__`) so UI shows user code.
+- Source parser filters SDK frames (`@nihal/flowlens-web`, `@nihal/flowlens-node`, `flowlens/packages/*`, `flowlens-web/dist`, `flowlens-node/dist`, `__flowlens_sdk__`, `__flowlens_instrumentation__`) so UI shows user code only.
 
 ---
 
 ## IPC Surface (renderer preload)
 
-Important invoke channels:
+All channels are exposed via `window.flowlens` in `preload/index.ts`.
 
-- `target:load-url`
-- `target:unload`
-- `target:set-split`
-- `trace:get-all`
-- `trace:get`
-- `trace:clear`
-- `source:fetch`
-- `sdk:start-listening`
-- `sdk:stop-listening`
-- `sdk:get-connection-count`
+### Invoke channels (async request-response)
 
-Push channels:
+| Channel | API method | Purpose |
+|---------|-----------|---------|
+| `target:load-url` | `loadTargetUrl(url)` | Create target view, load URL |
+| `target:unload` | `unloadTarget()` | Destroy target view, clear traces and source cache |
+| `target:reload` | `reloadTarget()` | Reload the current target page |
+| `target:set-split` | `setSplitRatio(ratio)` | Adjust left/right split ratio |
+| `target:highlight-dom` | `highlightDomTarget(data)` | Highlight a DOM element in target view |
+| `trace:get-all` | `getAllTraces()` | Fetch all stored traces |
+| `trace:get` | `getTrace(id)` | Fetch single trace by ID |
+| `trace:clear` | `clearTraces()` | Clear all traces |
+| `source:fetch` | `fetchSource(fileUrl)` | Fetch source file (disk/HTTP + source map extraction) |
+| `sdk:start-listening` | `startSdkMode()` | Enter SDK mode (returns `{ success, connectedClients }`) |
+| `sdk:stop-listening` | `stopSdkMode()` | Exit SDK mode (clears traces + source cache) |
+| `sdk:get-connection-count` | `getSdkConnectionCount()` | Get current WebSocket client count |
 
-- `trace:event-received`
-- `target:loaded`
-- `sdk:connection-count`
-- `sdk:connected`
-- `sdk:disconnected`
+### Subscribe channels (main → renderer push)
+
+| Channel | API method | Purpose |
+|---------|-----------|---------|
+| `trace:event-received` | `onTraceEvent(cb)` | Live event stream |
+| `target:loaded` | `onTargetLoaded(cb)` | Target page finished loading |
+| `sdk:connection-count` | `onSdkConnectionCount(cb)` | Live SDK connection count updates |
+
+Note: `ws-server.ts` also sends `sdk:connected` and `sdk:disconnected` to the renderer window directly (not exposed as subscribe methods in the preload API).
 
 ---
 
@@ -168,12 +209,13 @@ Current script behavior:
 ```text
 ┌───────────────┬─┬──────────────────────────┐
 │ Timeline      │ │ SourceCodePanel          │
-│ (traces/events)│ │ + FlowNavigator         │
+│ (traces/      │▐│ + FlowNavigator          │
+│  events)      │▐│                          │
 ├───────────────┴─┴──────────────────────────┤
-│ Bottom header: [Console][Inspector] ... URL Exit │
+│ Bottom header: [Console][Inspector] ... URL/SDK Exit │
 ├────────────────────────────────────────────┤
 │ Bottom body: ConsolePanel or InspectorPanel│
 └────────────────────────────────────────────┘
 ```
 
-No dedicated top status bar in trace mode.
+No dedicated top status bar in trace mode. Split view default ratio is 55/45 (target/UI), clamped to 20–80%.

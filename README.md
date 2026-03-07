@@ -11,7 +11,7 @@ You can use it in two ways:
 
 ### Embedded mode
 
-On page load, FlowLens injects the browser bundle built from `@nihal/flowlens-web` into the target view and calls `FlowLensWeb.init()`.  
+On page load, FlowLens injects the browser bundle built from `@nihal/flowlens-web` into the target view and calls `FlowLensWeb.init()`.
 That captures DOM events, network calls, console logs, runtime errors, and React state changes, then streams events to the built-in WebSocket server (`ws://localhost:9230`).
 
 ### SDK mode
@@ -28,6 +28,7 @@ Both feeds are correlated by `traceId` and rendered in the same timeline.
 - React state-change detection (`useState` / `useReducer`)
 - Source-code mapping and stack-based line highlighting
 - Inline event stepping with flow navigation
+- DOM element highlighting in embedded view during event navigation
 - Bottom tabbed panel: Console + Inspector (state changes / responses)
 - Resizable split view and panel dividers
 
@@ -38,7 +39,7 @@ npm install
 npm run dev
 ```
 
-`npm run dev` now builds the web SDK bundle first, then starts Electron dev mode.
+`npm run dev` builds the web SDK bundle first, then starts Electron dev mode.
 
 ## Build
 

@@ -58,9 +58,9 @@ if (import.meta.env.DEV) {
 
 ### API
 
-- `init(config?)`
-- `destroy()`
-- `isActive()`
+- `init(config?)` — start instrumentation
+- `destroy()` — tear down all patches and disconnect
+- `isActive()` — check if currently running
 
 ### Config
 
@@ -83,7 +83,7 @@ interface FlowLensWebConfig {
 - `fetch` + XHR request/response/error
 - `console.*`
 - runtime errors (`onerror`, `unhandledrejection`)
-- React state changes (multi-delay checks)
+- React state changes (multi-delay checks at 0/40/140ms)
 
 ### Important behavior
 

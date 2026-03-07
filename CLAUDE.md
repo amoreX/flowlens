@@ -64,20 +64,21 @@ Groups events by `traceId` into `TraceData` objects. Click/submit events generat
 |---------|-----------|---------|
 | `target:load-url` | renderer → main | Create target view, load URL |
 | `target:unload` | renderer → main | Destroy target view, clear traces and source cache |
+| `target:reload` | renderer → main | Reload the current target page |
 | `target:set-split` | renderer → main | Adjust left/right split ratio |
+| `target:highlight-dom` | renderer → main | Highlight a DOM element in the target view |
 | `trace:get-all` | renderer → main | Fetch all stored traces |
 | `trace:get` | renderer → main | Fetch single trace by ID |
 | `trace:clear` | renderer → main | Clear all traces |
 | `source:fetch` | renderer → main | Fetch source file (disk for local paths, HTTP + source map extraction for URLs) |
-| `instrumentation:event` | target → main | Raw event from instrumented page |
 | `trace:event-received` | main → renderer | Forward live event to React UI |
 | `target:loaded` | main → renderer | Notify that target page finished loading |
 | `sdk:start-listening` | renderer → main | Enter SDK mode (returns `{ success, connectedClients }`) |
 | `sdk:stop-listening` | renderer → main | Exit SDK mode (clears traces + source cache) |
 | `sdk:get-connection-count` | renderer → main | Get current WebSocket client count |
 | `sdk:connection-count` | main → renderer | Live SDK connection count updates |
-| `sdk:connected` | main → renderer | New SDK client connected (hello payload) |
-| `sdk:disconnected` | main → renderer | Last SDK client disconnected |
+| `sdk:connected` | main → renderer | New SDK client connected (sent directly, not in preload API) |
+| `sdk:disconnected` | main → renderer | Last SDK client disconnected (sent directly, not in preload API) |
 
 Renderer accesses invoke channels via `window.flowlens` API (exposed by `preload/index.ts` through contextBridge).
 
@@ -107,18 +108,21 @@ No top status bar. URL/SDK status and Exit button are in the bottom section head
 - **Timeline → TraceGroup → TimelineEvent** — trace list with collapse/expand. Action buttons: ➤ (focus) and … (details)
 - **SourceCodePanel** — dual-mode: **live mode** (per-trace hit accumulation, orange highlights via `.hit-latest`/`.hit-current-event`) and **focus mode** (selected event's full call stack, amber highlights via `.hit-nav-*` classes). Both use blue `.hit-trace` for other events. Each mode uses 3-tier line highlighting for visual depth
 - **FlowNavigator** — ← Event N/M → bar for stepping through events in a trace
+- **InspectorPanel** — state changes + network responses tab, supports navigation to related events
 - **ConsolePanel** — filterable by level (log/warn/error/info/debug), 2000 entry cap
-- **EventDetailPanel** — slide-in overlay with JSON event data + source context
+- **EventDetailPanel** — slide-in overlay with JSON event data + source context (uses SourceCodeViewer)
+- **EventBadge** — event type indicator badges used in TraceGroup
 
 ### Core Hooks
 
 - **useTraceEvents** — subscribe-first pattern: subscribes to `onTraceEvent` live stream, then loads existing snapshots via `getAllTraces()` and merges them. Uses `upsertEvent()` with dedup by `event.id` and `recomputeTraceMeta()` to re-sort events and recalculate start/end/root on each update
 - **useSourceHitMap** — parses `sourceStack` via `parseAllUserFrames()`, tracks per-file/line hit counts per trace (`currentTraceHits` for live mode, `allTraceHits` map for focus mode lookups), auto-fetches source files, provides hit data + source cache
 - **useConsoleEntries** — extracts console/error events, filters by level, caps at 2000
+- **useInspectorEntries** — tracks state changes and network responses for the Inspector tab
 
 ### Stack Parsing (utils/stack-parser.ts)
 
-Parses V8 stack traces from browser (HTTP URLs), Node.js (filesystem paths), and ESM (`file://` URLs). Filters out: FlowLens instrumentation frames, `node_modules`, `.vite/deps`, `node:` internals, browser extensions, devtools, VM scripts.
+Parses V8 stack traces from browser (HTTP URLs), Node.js (filesystem paths), and ESM (`file://` URLs). Filters out: FlowLens instrumentation frames (`__flowlens_instrumentation__`, `__flowlens_sdk__`), SDK packages (`@nihal/flowlens-web`, `@nihal/flowlens-node`, `flowlens/packages/*`, `flowlens-web/dist`, `flowlens-node/dist`), `node_modules`, `.vite/deps`, `node:` internals, browser extensions, devtools, VM scripts.
 
 - `parseUserSourceLocation(stack)` — first user-code frame (for detail overlay)
 - `parseAllUserFrames(stack)` — all user-code frames (for hit map + call stack)

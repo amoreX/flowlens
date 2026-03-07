@@ -1,18 +1,17 @@
-# FlowLens SDK Plan Status
+# FlowLens SDK Plan — Completed
 
-This file was originally a design plan for the backend package.  
-The plan is now implemented and superseded by live docs.
+This file was originally a design plan for the SDK packages. The plan is fully implemented.
 
 ## Current Status
 
-- `@nihal/flowlens-node` is implemented in `packages/node`
-- `@nihal/flowlens-web` is implemented in `packages/web`
-- Embedded mode now injects the built web SDK bundle (`dist/browser.global.js`)
+- `@nihal/flowlens-node` — implemented in `packages/node/`
+- `@nihal/flowlens-web` — implemented in `packages/web/`
+- Embedded mode injects the built web SDK bundle (`dist/browser.global.js`)
 - SDK mode is fully supported in the desktop app UI
 
 ## Implemented Backend SDK API
 
-Use these exports from `@nihal/flowlens-node`:
+Exports from `@nihal/flowlens-node`:
 
 - `flowlens(config)` — Express-style middleware
 - `flowlensFastify(config)` — Fastify plugin
@@ -25,8 +24,3 @@ There is no `createFlowLens()` API in the current implementation.
 - Architecture and app behavior: `readme_dev.md`
 - SDK usage and package details: `readme_package.md`
 - Quick start and overview: `README.md`
-
-## Historical Notes
-
-The original plan discussed possible future additions (Koa/Nest/OTel bridges).  
-Those are still potential future work but are not part of the current shipped API.
