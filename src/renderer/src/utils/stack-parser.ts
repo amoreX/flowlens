@@ -69,16 +69,26 @@ export function parseAllUserFrames(stack: string | undefined): SourceLocation[] 
 }
 
 function isInstrumentationFrame(filePath: string, _functionName?: string): boolean {
+  // FlowLens instrumentation markers
   if (filePath.includes('__flowlens_instrumentation__')) return true
   if (filePath.includes('__flowlens_sdk__')) return true
+
+  // FlowLens SDK packages — npm-installed or Vite @fs/ served
   if (filePath.includes('@nihal/flowlens-web')) return true
+  if (filePath.includes('@nihal/flowlens-node')) return true
+  if (filePath.includes('flowlens/packages/web')) return true
+  if (filePath.includes('flowlens/packages/node')) return true
+  if (filePath.includes('flowlens-web/dist')) return true
+  if (filePath.includes('flowlens-node/dist')) return true
 
+  // Browser internals
   if (/^(devtools|chrome-extension|chrome):\/\//.test(filePath)) return true
-
   if (/^VM\d+/.test(filePath)) return true
 
+  // Third-party / framework code
   if (/node_modules|\.vite\/deps/.test(filePath)) return true
 
+  // Node.js internals
   if (filePath.startsWith('node:')) return true
 
   return false

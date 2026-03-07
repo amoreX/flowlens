@@ -176,7 +176,6 @@ function computeTraceHighlights(
   const fileLastHit = new Map<string, number>()
   let latestFile: string | null = null
   let latestLine: number | null = null
-  let latestTs = 0
 
   for (const ev of traceEvents) {
     const frames = parseEventFrames(ev)
@@ -206,8 +205,8 @@ function computeTraceHighlights(
         })
       }
 
-      if (isCurrent && fi === 0 && ev.timestamp >= latestTs) {
-        latestTs = ev.timestamp
+      // Track the current event's primary (first) frame for latest marker
+      if (isCurrent && fi === 0) {
         latestFile = frame.filePath
         latestLine = frame.line
       }
@@ -220,9 +219,13 @@ function computeTraceHighlights(
     if (hit) hit.isLatest = true
   }
 
-  const fileOrder = Array.from(files.keys()).sort((a, b) =>
-    (fileLastHit.get(b) ?? 0) - (fileLastHit.get(a) ?? 0)
-  )
+  // Sort files: current event's file first, then by most recent hit
+  const currentFileFirst = latestFile
+  const fileOrder = Array.from(files.keys()).sort((a, b) => {
+    if (a === currentFileFirst) return -1
+    if (b === currentFileFirst) return 1
+    return (fileLastHit.get(b) ?? 0) - (fileLastHit.get(a) ?? 0)
+  })
 
   return { files, fileOrder }
 }
@@ -232,7 +235,7 @@ function FocusedSourceView({
   traceEvents,
   sourceCache,
   fetchSourceIfNeeded,
-  onNavigateToTraceEvent
+  onNavigateToTraceEvent: _onNavigateToTraceEvent
 }: FocusedSourceViewProps) {
   const frames = useMemo(() => parseEventFrames(event), [event.id])
   const [activeFrameIndex, setActiveFrameIndex] = useState(0)
@@ -277,11 +280,21 @@ function FocusedSourceView({
 
   const activeFrame = frames[effectiveFrameIndex] as SourceLocation | undefined
 
+  // When event changes and there's no fileOverride, always show the current event's file
   const viewingFile = fileOverride
     ?? activeFrame?.filePath
     ?? frames[0]?.filePath
     ?? highlights.fileOrder[0]
     ?? null
+
+  // Auto-switch to the current event's file when navigating (unless user manually selected a tab)
+  const [autoSwitchedEventId, setAutoSwitchedEventId] = useState(event.id)
+  if (event.id !== autoSwitchedEventId) {
+    setAutoSwitchedEventId(event.id)
+    if (fileOverride && activeFrame && fileOverride !== activeFrame.filePath) {
+      setFileOverride(null)
+    }
+  }
 
   useEffect(() => {
     for (const fp of highlights.fileOrder) {
@@ -296,20 +309,24 @@ function FocusedSourceView({
   }, [viewingFile, fetchSourceIfNeeded])
 
   // Scroll to target line (translated via source map)
+  // Include event.id in deps so scroll fires on every event navigation
   useEffect(() => {
     if (!activeFrame) return
     const cached = sourceCache.get(activeFrame.filePath)
     if (!cached?.content) return
 
     const targetLine = mapLine(activeFrame.line, cached.lineMap)
+    // Double rAF to ensure DOM has committed the new key-based elements
     requestAnimationFrame(() => {
-      if (!codeAreaRef.current) return
-      const el = codeAreaRef.current.querySelector(`[data-line="${targetLine}"]`)
-      if (el) {
-        el.scrollIntoView({ block: 'center', behavior: 'smooth' })
-      }
+      requestAnimationFrame(() => {
+        if (!codeAreaRef.current) return
+        const el = codeAreaRef.current.querySelector(`[data-line="${targetLine}"]`)
+        if (el) {
+          el.scrollIntoView({ block: 'center', behavior: 'smooth' })
+        }
+      })
     })
-  }, [activeFrame, sourceCache])
+  }, [event.id, activeFrame, sourceCache])
 
   if (tabFiles.length === 0) {
     return (
