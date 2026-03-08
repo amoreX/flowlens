@@ -1,13 +1,10 @@
 # FlowLens — Developer Guide
 
-This guide reflects the current codebase, including the package-based frontend instrumentation.
+This guide reflects the current codebase architecture.
 
 ## Overview
 
-FlowLens runs in two modes:
-
-- **Embedded mode**: load a URL in a sandboxed `WebContentsView`.
-- **SDK mode**: no embedded page; external apps send events via `@nihal/flowlens-web` and `@nihal/flowlens-node`.
+Users paste a URL and FlowLens loads it in a sandboxed `WebContentsView`, auto-injecting instrumentation. For backend correlation, users install `@nihal/flowlens-node` middleware.
 
 At app boot, the main process starts:
 
@@ -65,7 +62,7 @@ src/
     assets/
   shared/types.ts
 packages/
-  web/    (@nihal/flowlens-web)
+  web/    (internal instrumentation bundle, private)
   node/   (@nihal/flowlens-node)
 ```
 
@@ -82,18 +79,18 @@ packages/
 - Source file cache (100-entry, FIFO eviction)
 - Pushes live events to renderer via `trace:event-received`
 
-### Target view (embedded mode)
+### Target view
 
 - Loads user URL in sandboxed `WebContentsView`
 - Injects **built bundle** from `packages/web/dist/browser.global.js`
 - Calls `window.FlowLensWeb.init({ endpoint: 'ws://localhost:9230', ... })`
 - Emits SPA navigation events from `did-navigate-in-page`
 - Supports DOM element highlighting via `target:highlight-dom` IPC
+- **Element inspector** via `target:inspect-start` — injects a self-contained overlay script that shows element info on hover (tag, classes, dimensions, React component name + source) and returns the selected element's component source location on click
 
 ### Renderer
 
 - Timeline + source panel + flow navigator + bottom tabs (Console/Inspector)
-- Bottom header contains Console/Inspector tabs and right-side URL/SDK status/Exit
 - Uses hooks:
   - `useTraceEvents` — subscribe-first live stream + snapshot merge, dedup by event.id
   - `useSourceHitMap` — per-file/line hit tracking, source cache, auto-fetch
@@ -102,20 +99,19 @@ packages/
 
 ### App modes
 
-`App.tsx` manages three modes, but only two page components:
+`App.tsx` manages two modes:
 
 | Mode | Page component | Description |
 |------|---------------|-------------|
-| `onboarding` | `OnboardingPage` | URL input + SDK Mode button |
+| `onboarding` | `OnboardingPage` | URL input |
 | `trace` | `TracePage` | Split view — embedded site left, tracing UI right |
-| `sdk-listening` | `TracePage` (with `sdkMode={true}`) | Full-width tracing UI, no embedded page |
 
 ---
 
 ## Event Flow
 
 ```text
-frontend (@nihal/flowlens-web) --WS:9230--> ws-server.ts --\
+embedded page (injected bundle) --WS:9230--> ws-server.ts --\
                                                     +--> trace-engine --> renderer
 backend (@nihal/flowlens-node) ----HTTP:9229--> span-collector --/
 ```
@@ -144,14 +140,12 @@ Supports `phaseStacks`, `requestStack/handlerStack/responseStack`, and fallback 
 
 ## Instrumentation Notes
 
-FlowLens no longer uses the old large inline IIFE patch logic.
-Instead, `target-view.ts` injects the built package bundle and initializes `FlowLensWeb`.
+`target-view.ts` injects the built bundle from `packages/web/dist/browser.global.js` and initializes `FlowLensWeb`.
 
 For safety:
 
-- If bundle is missing, target view logs a warning:
-  - `@nihal/flowlens-web browser bundle not found`
-- Source parser filters SDK frames (`@nihal/flowlens-web`, `@nihal/flowlens-node`, `flowlens/packages/*`, `flowlens-web/dist`, `flowlens-node/dist`, `__flowlens_sdk__`, `__flowlens_instrumentation__`) so UI shows user code only.
+- If bundle is missing, target view logs a warning
+- Source parser filters instrumentation frames (`@nihal/flowlens-web`, `@nihal/flowlens-node`, `flowlens/packages/*`, `flowlens-web/dist`, `flowlens-node/dist`, `__flowlens_sdk__`, `__flowlens_instrumentation__`) so UI shows user code only.
 
 ---
 
@@ -168,13 +162,12 @@ All channels are exposed via `window.flowlens` in `preload/index.ts`.
 | `target:reload` | `reloadTarget()` | Reload the current target page |
 | `target:set-split` | `setSplitRatio(ratio)` | Adjust left/right split ratio |
 | `target:highlight-dom` | `highlightDomTarget(data)` | Highlight a DOM element in target view |
+| `target:inspect-start` | `startInspect()` | Start element inspector (returns element info on click) |
+| `target:inspect-stop` | `stopInspect()` | Cancel element inspector |
 | `trace:get-all` | `getAllTraces()` | Fetch all stored traces |
 | `trace:get` | `getTrace(id)` | Fetch single trace by ID |
 | `trace:clear` | `clearTraces()` | Clear all traces |
 | `source:fetch` | `fetchSource(fileUrl)` | Fetch source file (disk/HTTP + source map extraction) |
-| `sdk:start-listening` | `startSdkMode()` | Enter SDK mode (returns `{ success, connectedClients }`) |
-| `sdk:stop-listening` | `stopSdkMode()` | Exit SDK mode (clears traces + source cache) |
-| `sdk:get-connection-count` | `getSdkConnectionCount()` | Get current WebSocket client count |
 
 ### Subscribe channels (main → renderer push)
 
@@ -182,9 +175,6 @@ All channels are exposed via `window.flowlens` in `preload/index.ts`.
 |---------|-----------|---------|
 | `trace:event-received` | `onTraceEvent(cb)` | Live event stream |
 | `target:loaded` | `onTargetLoaded(cb)` | Target page finished loading |
-| `sdk:connection-count` | `onSdkConnectionCount(cb)` | Live SDK connection count updates |
-
-Note: `ws-server.ts` also sends `sdk:connected` and `sdk:disconnected` to the renderer window directly (not exposed as subscribe methods in the preload API).
 
 ---
 
@@ -199,8 +189,8 @@ npm run build
 
 Current script behavior:
 
-- `npm run dev` builds `@nihal/flowlens-web` first (`build:web-sdk`) then runs Electron dev.
-- `npm run build` builds `@nihal/flowlens-web`, typechecks, then builds Electron app.
+- `npm run dev` builds the instrumentation bundle first (`build:web-sdk`) then runs Electron dev.
+- `npm run build` builds the bundle, typechecks, then builds Electron app.
 
 ---
 
@@ -212,10 +202,10 @@ Current script behavior:
 │ (traces/      │▐│ + FlowNavigator          │
 │  events)      │▐│                          │
 ├───────────────┴─┴──────────────────────────┤
-│ Bottom header: [Console][Inspector] ... URL/SDK Exit │
+│ Bottom header: [Console][Inspector]        │
 ├────────────────────────────────────────────┤
 │ Bottom body: ConsolePanel or InspectorPanel│
 └────────────────────────────────────────────┘
 ```
 
-No dedicated top status bar in trace mode. Split view default ratio is 55/45 (target/UI), clamped to 20–80%.
+URL and Exit controls are in the target toolbar above the embedded page. Split view default ratio is 55/45 (target/UI), clamped to 20–80%.

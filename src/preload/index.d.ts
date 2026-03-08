@@ -1,5 +1,15 @@
 import type { CapturedEvent, TraceData, SourceResponse, DomEventData } from '../shared/types'
 
+interface InspectResult {
+  cancelled?: boolean
+  tagName?: string
+  id?: string
+  className?: string
+  componentName?: string
+  sourceFile?: string
+  sourceLine?: number
+}
+
 interface FlowLensAPI {
   loadTargetUrl: (url: string) => Promise<{ success: boolean }>
   unloadTarget: () => Promise<{ success: boolean }>
@@ -12,10 +22,8 @@ interface FlowLensAPI {
   highlightDomTarget: (data: DomEventData) => Promise<{ success: boolean; reason?: string }>
   onTraceEvent: (callback: (event: CapturedEvent) => void) => () => void
   onTargetLoaded: (callback: (url: string) => void) => () => void
-  startSdkMode: () => Promise<{ success: boolean; connectedClients: number }>
-  stopSdkMode: () => Promise<{ success: boolean }>
-  getSdkConnectionCount: () => Promise<number>
-  onSdkConnectionCount: (callback: (count: number) => void) => () => void
+  startInspect: () => Promise<InspectResult>
+  stopInspect: () => Promise<{ success: boolean }>
 }
 
 declare global {

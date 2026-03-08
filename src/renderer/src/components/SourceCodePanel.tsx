@@ -10,6 +10,8 @@ interface SourceCodePanelProps {
   focusedEvent: CapturedEvent | null
   focusedTraceEvents?: CapturedEvent[]
   onNavigateToTraceEvent?: (eventId: string) => void
+  inspectedSource?: { file: string; line: number } | null
+  onClearInspectedSource?: () => void
 }
 
 function parseEventFrames(event: CapturedEvent): SourceLocation[] {
@@ -58,8 +60,21 @@ export function SourceCodePanel({
   hitMap,
   focusedEvent,
   focusedTraceEvents,
-  onNavigateToTraceEvent
+  onNavigateToTraceEvent,
+  inspectedSource,
+  onClearInspectedSource
 }: SourceCodePanelProps) {
+  if (inspectedSource) {
+    return (
+      <InspectedSourceView
+        file={inspectedSource.file}
+        line={inspectedSource.line}
+        sourceCache={hitMap.sourceCache}
+        fetchSourceIfNeeded={hitMap.fetchSourceIfNeeded}
+        onClose={onClearInspectedSource}
+      />
+    )
+  }
   if (focusedEvent && focusedTraceEvents) {
     return (
       <FocusedSourceView
@@ -149,6 +164,82 @@ function LiveSourceView({ hitMap }: { hitMap: SourceHitMap }) {
           codeAreaRef={codeAreaRef}
         />
       )}
+    </div>
+  )
+}
+
+// ── Inspect Mode: show a specific file from element inspector ────────
+
+function InspectedSourceView({
+  file,
+  line,
+  sourceCache,
+  fetchSourceIfNeeded,
+  onClose
+}: {
+  file: string
+  line: number
+  sourceCache: Map<string, SourceFileCache>
+  fetchSourceIfNeeded: (filePath: string) => void
+  onClose?: () => void
+}) {
+  const codeAreaRef = useRef<HTMLDivElement>(null)
+  const displayPath = extractDisplayPath(file)
+
+  useEffect(() => {
+    fetchSourceIfNeeded(file)
+  }, [file, fetchSourceIfNeeded])
+
+  const sourceData = sourceCache.get(file)
+  const lines = sourceData?.content?.split('\n') ?? null
+  const lineMap = sourceData?.lineMap
+  const targetLine = mapLine(line, lineMap)
+
+  useEffect(() => {
+    if (!lines) return
+    requestAnimationFrame(() => {
+      if (!codeAreaRef.current) return
+      const el = codeAreaRef.current.querySelector(`[data-line="${targetLine}"]`)
+      if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    })
+  }, [lines, targetLine])
+
+  return (
+    <div className="source-panel">
+      <div className="source-file-tabs">
+        <button className="source-file-tab active" title={file}>
+          {displayPath}
+        </button>
+        {onClose && (
+          <button className="source-file-tab source-inspect-close" onClick={onClose} title="Close inspect view">
+            ✕
+          </button>
+        )}
+      </div>
+      <div className="source-code-area" ref={codeAreaRef}>
+        {lines ? (
+          lines.map((content, i) => {
+            const lineNum = i + 1
+            const isTarget = lineNum === targetLine
+            return (
+              <div
+                key={lineNum}
+                className={`source-line${isTarget ? ' hit-nav-current' : ''}`}
+                data-line={lineNum}
+              >
+                <span className="source-line-number">{lineNum}</span>
+                <span className="source-line-code">
+                  {tokenizeLine(content).map((tok, ti) => (
+                    <span key={ti} className={`tok-${tok.type}`}>{tok.value}</span>
+                  ))}
+                </span>
+              </div>
+            )
+          })
+        ) : (
+          <div className="source-panel-empty">Loading source…</div>
+        )}
+      </div>
     </div>
   )
 }

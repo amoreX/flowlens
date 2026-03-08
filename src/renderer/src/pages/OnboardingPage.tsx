@@ -3,7 +3,6 @@ import '../assets/onboarding.css'
 
 interface OnboardingPageProps {
   onLaunch: (url: string) => void
-  onSdkMode: () => void
 }
 
 const EXAMPLE_URLS = [
@@ -12,7 +11,7 @@ const EXAMPLE_URLS = [
   { label: 'news.ycombinator.com', url: 'https://news.ycombinator.com' }
 ]
 
-export function OnboardingPage({ onLaunch, onSdkMode }: OnboardingPageProps) {
+export function OnboardingPage({ onLaunch }: OnboardingPageProps) {
   return (
     <div className="onboarding">
       <div className="onboarding-grid" />
@@ -35,17 +34,6 @@ export function OnboardingPage({ onLaunch, onSdkMode }: OnboardingPageProps) {
             </button>
           ))}
         </div>
-
-        <div className="onboarding-divider">
-          <span className="onboarding-divider-line" />
-          <span className="onboarding-divider-text">or</span>
-          <span className="onboarding-divider-line" />
-        </div>
-
-        <button className="sdk-mode-btn no-drag" onClick={onSdkMode}>
-          SDK Mode
-          <span className="sdk-mode-btn-sub">Connect via @nihal/flowlens-web</span>
-        </button>
       </div>
     </div>
   )

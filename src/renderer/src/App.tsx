@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from 'react'
 import { OnboardingPage } from './pages/OnboardingPage'
 import { TracePage } from './pages/TracePage'
 
-type AppMode = 'onboarding' | 'trace' | 'sdk-listening'
+type AppMode = 'onboarding' | 'trace'
 
 function normalizeTargetUrl(raw: string): string | null {
   const trimmed = raw.trim()
@@ -25,7 +25,8 @@ export default function App() {
   const [toolbarUrl, setToolbarUrl] = useState('')
   const [splitRatio, setSplitRatio] = useState(0.55)
   const [draggingSplit, setDraggingSplit] = useState(false)
-  const [sdkConnections, setSdkConnections] = useState(0)
+  const [inspecting, setInspecting] = useState(false)
+  const [inspectedSource, setInspectedSource] = useState<{ file: string; line: number } | null>(null)
 
   const handleLaunch = useCallback(async (url: string) => {
     await window.flowlens.loadTargetUrl(url)
@@ -39,24 +40,8 @@ export default function App() {
     setMode('onboarding')
   }, [])
 
-  const handleSdkMode = useCallback(async () => {
-    const result = await window.flowlens.startSdkMode()
-    setSdkConnections(result.connectedClients)
-    setMode('sdk-listening')
-  }, [])
-
-  const handleSdkStop = useCallback(async () => {
-    await window.flowlens.stopSdkMode()
-    setSdkConnections(0)
-    setMode('onboarding')
-  }, [])
-
-  // Listen for SDK connection count changes
   useEffect(() => {
-    const unsub = window.flowlens.onSdkConnectionCount((count: number) => {
-      setSdkConnections(count)
-    })
-    return unsub
+    window.flowlens.unloadTarget()
   }, [])
 
   useEffect(() => {
@@ -78,6 +63,19 @@ export default function App() {
   const handleRefresh = useCallback(async () => {
     await window.flowlens.reloadTarget()
   }, [])
+
+  const handleInspect = useCallback(async () => {
+    if (inspecting) return
+    setInspecting(true)
+    try {
+      const result = await window.flowlens.startInspect()
+      if (!result.cancelled && result.sourceFile) {
+        setInspectedSource({ file: result.sourceFile, line: result.sourceLine || 1 })
+      }
+    } finally {
+      setInspecting(false)
+    }
+  }, [inspecting])
 
   const onSplitDragStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -110,7 +108,6 @@ export default function App() {
     }
   }, [draggingSplit])
 
-  // In embedded mode, offset for the target view; in SDK mode, full width
   const traceStyle = mode === 'trace'
     ? { width: `${(1 - splitRatio) * 100}%`, marginLeft: `${splitRatio * 100}%` }
     : undefined
@@ -140,6 +137,14 @@ export default function App() {
           <button type="button" className="target-toolbar-refresh no-drag" onClick={handleRefresh}>
             Refresh
           </button>
+          <button
+            type="button"
+            className={`target-toolbar-inspect no-drag${inspecting ? ' active' : ''}`}
+            onClick={handleInspect}
+            title="Inspect element"
+          >
+            Inspect
+          </button>
           <button type="button" className="target-toolbar-exit no-drag" onClick={handleStop}>
             Exit
           </button>
@@ -152,12 +157,12 @@ export default function App() {
         />
       )}
       {mode === 'onboarding' ? (
-        <OnboardingPage onLaunch={handleLaunch} onSdkMode={handleSdkMode} />
+        <OnboardingPage onLaunch={handleLaunch} />
       ) : (
         <TracePage
-          onStop={mode === 'sdk-listening' ? handleSdkStop : handleStop}
-          sdkMode={mode === 'sdk-listening'}
-          sdkConnections={sdkConnections}
+          onStop={handleStop}
+          inspectedSource={inspectedSource}
+          onClearInspectedSource={() => setInspectedSource(null)}
         />
       )}
     </div>

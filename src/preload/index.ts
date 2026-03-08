@@ -49,25 +49,19 @@ const api = {
       ipcRenderer.removeListener('target:loaded', handler)
     }
   },
-
-  // SDK mode
-  startSdkMode: (): Promise<{ success: boolean; connectedClients: number }> => {
-    return ipcRenderer.invoke('sdk:start-listening')
+  startInspect: (): Promise<{
+    cancelled?: boolean
+    tagName?: string
+    id?: string
+    className?: string
+    componentName?: string
+    sourceFile?: string
+    sourceLine?: number
+  }> => {
+    return ipcRenderer.invoke('target:inspect-start')
   },
-  stopSdkMode: (): Promise<{ success: boolean }> => {
-    return ipcRenderer.invoke('sdk:stop-listening')
-  },
-  getSdkConnectionCount: (): Promise<number> => {
-    return ipcRenderer.invoke('sdk:get-connection-count')
-  },
-  onSdkConnectionCount: (callback: (count: number) => void): (() => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, count: number): void => {
-      callback(count)
-    }
-    ipcRenderer.on('sdk:connection-count', handler)
-    return () => {
-      ipcRenderer.removeListener('sdk:connection-count', handler)
-    }
+  stopInspect: (): Promise<{ success: boolean }> => {
+    return ipcRenderer.invoke('target:inspect-stop')
   }
 }
 

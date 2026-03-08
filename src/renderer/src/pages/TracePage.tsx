@@ -15,11 +15,11 @@ import '../assets/timeline.css'
 
 interface TracePageProps {
   onStop: () => void
-  sdkMode?: boolean
-  sdkConnections?: number
+  inspectedSource?: { file: string; line: number } | null
+  onClearInspectedSource?: () => void
 }
 
-export function TracePage({ onStop, sdkMode, sdkConnections }: TracePageProps) {
+export function TracePage({ onStop: _onStop, inspectedSource, onClearInspectedSource }: TracePageProps) {
   const { traces, clearTraces } = useTraceEvents()
   const [selectedEvent, setSelectedEvent] = useState<CapturedEvent | null>(null)
   const [targetHighlightStatus, setTargetHighlightStatus] = useState<string | null>(null)
@@ -268,6 +268,8 @@ export function TracePage({ onStop, sdkMode, sdkConnections }: TracePageProps) {
             focusedEvent={focusedEvent}
             focusedTraceEvents={focusedTrace?.events}
             onNavigateToTraceEvent={handleSourceNavigateToEvent}
+            inspectedSource={inspectedSource}
+            onClearInspectedSource={onClearInspectedSource}
           />
           {focusedTrace && (
             <FlowNavigator
@@ -316,18 +318,12 @@ export function TracePage({ onStop, sdkMode, sdkConnections }: TracePageProps) {
               <span className="bottom-tab-badge">{inspectorEntries.totalCount}</span>
             )}
           </button>
-          {sdkMode && (
+          {targetHighlightStatus && (
             <>
               <div className="bottom-header-spacer" />
-              <div className="bottom-header-right">
-                <span className="bottom-header-url">SDK — {sdkConnections || 0} connected</span>
-                {targetHighlightStatus && (
-                  <span className="bottom-header-note" title={targetHighlightStatus}>
-                    {targetHighlightStatus}
-                  </span>
-                )}
-                <button className="bottom-header-stop" onClick={onStop}>Exit</button>
-              </div>
+              <span className="bottom-header-note" title={targetHighlightStatus}>
+                {targetHighlightStatus}
+              </span>
             </>
           )}
         </div>

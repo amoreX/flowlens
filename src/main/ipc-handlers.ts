@@ -5,10 +5,11 @@ import {
   destroyTargetView,
   setTargetSplitRatio,
   highlightDomTarget,
-  reloadTargetView
+  reloadTargetView,
+  startInspectMode,
+  stopInspectMode
 } from './target-view'
 import { fetchSourceFile, clearSourceCache } from './source-fetcher'
-import { getConnectedClientCount } from './ws-server'
 import type { DomEventData } from '../shared/types'
 
 export function registerIpcHandlers(traceEngine: TraceCorrelationEngine): void {
@@ -54,19 +55,12 @@ export function registerIpcHandlers(traceEngine: TraceCorrelationEngine): void {
     return reloadTargetView()
   })
 
-  // SDK mode handlers
-  ipcMain.handle('sdk:start-listening', () => {
-    // SDK mode — WS server is always running, this just enters SDK mode in the UI
-    return { success: true, connectedClients: getConnectedClientCount() }
+  ipcMain.handle('target:inspect-start', () => {
+    return startInspectMode()
   })
 
-  ipcMain.handle('sdk:stop-listening', () => {
-    traceEngine.clear()
-    clearSourceCache()
+  ipcMain.handle('target:inspect-stop', () => {
+    stopInspectMode()
     return { success: true }
-  })
-
-  ipcMain.handle('sdk:get-connection-count', () => {
-    return getConnectedClientCount()
   })
 }

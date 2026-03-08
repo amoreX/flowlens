@@ -258,6 +258,8 @@
   min-height: 38px;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border);
+  position: relative;
+  z-index: 10000;
 }
 
 .timeline-list {

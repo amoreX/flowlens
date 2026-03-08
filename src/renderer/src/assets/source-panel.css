@@ -58,6 +58,18 @@
   font-weight: 600;
 }
 
+.source-inspect-close {
+  margin-left: auto;
+  font-size: 0.7rem;
+  padding: 0 10px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+
+.source-inspect-close:hover {
+  color: var(--red);
+}
+
 /* Source code viewer area */
 .source-code-area {
   flex: 1;

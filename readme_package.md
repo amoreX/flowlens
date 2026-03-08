@@ -1,19 +1,10 @@
-# FlowLens SDK Packages
-
-FlowLens uses two SDKs:
-
-- `@nihal/flowlens-web` for frontend/browser instrumentation
-- `@nihal/flowlens-node` for backend span reporting
-
-These power **SDK mode** and are also used in **embedded mode** (the desktop app injects the built web bundle).
-
----
+# FlowLens Packages
 
 ## Package Layout
 
 ```text
 packages/
-  web/   @nihal/flowlens-web
+  web/   Internal instrumentation bundle (private, not published)
   node/  @nihal/flowlens-node
 ```
 
@@ -28,69 +19,37 @@ Root workspace uses:
 ## Data Pipeline
 
 ```text
-@nihal/flowlens-web  -- WebSocket (:9230) --> src/main/ws-server.ts
-@nihal/flowlens-node -- HTTP POST (:9229) --> src/main/span-collector.ts
-                                      --> TraceCorrelationEngine
-                                      --> renderer via trace:event-received
+Embedded page (injected bundle) -- WebSocket (:9230) --> src/main/ws-server.ts
+                                                                    \
+                                                                     +--> TraceCorrelationEngine
+                                                                    /        --> renderer via trace:event-received
+@nihal/flowlens-node ----------- HTTP POST (:9229) --> src/main/span-collector.ts
 ```
 
 FlowLens correlates everything by `traceId` (propagated through `X-FlowLens-Trace-Id`).
 
 ---
 
-## `@nihal/flowlens-web`
+## Internal: `packages/web`
 
-### Install
+The `packages/web` directory contains the instrumentation code that FlowLens auto-injects into embedded pages. It is **not** published to npm — it is an internal build artifact.
 
-```bash
-npm install @nihal/flowlens-web
-```
+`target-view.ts` reads `packages/web/dist/browser.global.js` (the IIFE bundle) and injects it into every loaded page, then calls `FlowLensWeb.init()`.
 
-### Basic usage
-
-```ts
-import { init } from '@nihal/flowlens-web'
-
-if (import.meta.env.DEV) {
-  init()
-}
-```
-
-### API
-
-- `init(config?)` — start instrumentation
-- `destroy()` — tear down all patches and disconnect
-- `isActive()` — check if currently running
-
-### Config
-
-```ts
-interface FlowLensWebConfig {
-  endpoint?: string          // default ws://localhost:9230
-  enabled?: boolean          // default true
-  patchDOM?: boolean         // default true
-  patchFetch?: boolean       // default true
-  patchXHR?: boolean         // default true
-  patchConsole?: boolean     // default true
-  captureErrors?: boolean    // default true
-  detectReactState?: boolean // default true
-}
-```
-
-### Captures
+### What it captures
 
 - DOM events (`click`, `submit`, `input`, `change`, `focus`, `blur`)
 - `fetch` + XHR request/response/error
 - `console.*`
-- runtime errors (`onerror`, `unhandledrejection`)
+- Runtime errors (`onerror`, `unhandledrejection`)
 - React state changes (multi-delay checks at 0/40/140ms)
 
 ### Important behavior
 
 - `click`/`submit` creates new trace ID
-- Injects `X-FlowLens-Trace-Id` on outgoing HTTP requests
+- Injects `X-FlowLens-Trace-Id` on outgoing HTTP requests for backend correlation
 - Includes `bodyPreview` on network responses
-- Uses frame filtering so SDK internals do not pollute source highlights
+- Uses frame filtering so instrumentation internals do not pollute source highlights
 - Guards against double instrumentation with `window.__flowlens_instrumented`
 
 ### Build outputs
@@ -100,11 +59,11 @@ interface FlowLensWebConfig {
 - ESM + CJS package entry
 - IIFE global bundle: `dist/browser.global.js` (`globalName: FlowLensWeb`)
 
-The desktop app injects this IIFE in embedded mode.
-
 ---
 
 ## `@nihal/flowlens-node`
+
+The backend SDK for server-side span collection. Install this in your backend to correlate server events with frontend traces.
 
 ### Install
 
@@ -144,16 +103,31 @@ interface FlowLensNodeConfig {
 
 Collector expands one span into three `backend-span` events (`request`, `handler`, `response`) with per-phase stacks.
 
----
+### Usage
 
-## Embedded vs SDK Mode
+```js
+// Express
+const { flowlens } = require('@nihal/flowlens-node')
 
-| Topic | Embedded mode | SDK mode |
-|---|---|---|
-| Frontend instrumentation | Injects `dist/browser.global.js` in target view | You call `init()` in your app |
-| Backend spans | Optional manual posts or SDK | `@nihal/flowlens-node` middleware |
-| Renderer layout | Split view with embedded page | Full-width tracing UI |
-| Transport | WS + IPC pipeline in desktop app | WS (`@nihal/flowlens-web`) + HTTP (`@nihal/flowlens-node`) |
+app.use(cors({
+  origin: true,
+  allowedHeaders: ['Content-Type', 'X-FlowLens-Trace-Id']
+}))
+app.use(flowlens({ serviceName: 'my-api' }))
+```
+
+```ts
+// Fastify
+import { flowlensFastify } from '@nihal/flowlens-node'
+app.register(flowlensFastify({ serviceName: 'my-api' }))
+```
+
+```ts
+// Raw node:http
+import { wrapHandler } from '@nihal/flowlens-node'
+const traced = wrapHandler(handler, { serviceName: 'my-api' })
+http.createServer(traced)
+```
 
 ---
 
@@ -171,7 +145,7 @@ npm run --workspace @nihal/flowlens-node dev
 
 Root scripts:
 
-- `npm run build:web-sdk` builds `@nihal/flowlens-web` first
+- `npm run build:web-sdk` builds the instrumentation bundle first
 - `npm run dev` and `npm run build` call this automatically
 
 ---
@@ -179,7 +153,6 @@ Root scripts:
 ## Quick End-to-End Setup
 
 1. Start FlowLens desktop: `npm run dev`
-2. Frontend: install `@nihal/flowlens-web`, call `init()` in dev
-3. Backend: install `@nihal/flowlens-node`, attach middleware/plugin
-4. In FlowLens onboarding, click **SDK Mode**
-5. Use your app; traces appear with frontend and backend events correlated
+2. Backend: install `@nihal/flowlens-node`, attach middleware/plugin
+3. In FlowLens, paste your frontend URL (e.g. `http://localhost:3099`)
+4. Use your app; traces appear with frontend and backend events correlated

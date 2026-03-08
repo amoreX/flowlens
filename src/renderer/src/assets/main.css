@@ -89,6 +89,7 @@ body {
 
 .target-toolbar-go,
 .target-toolbar-refresh,
+.target-toolbar-inspect,
 .target-toolbar-exit {
   height: 28px;
   padding: 0 14px;
@@ -107,6 +108,7 @@ body {
 
 .target-toolbar-go:hover,
 .target-toolbar-refresh:hover,
+.target-toolbar-inspect:hover,
 .target-toolbar-exit:hover {
   border-color: var(--border-strong);
   color: var(--text-primary);
@@ -114,6 +116,23 @@ body {
 
 .target-toolbar-go {
   color: var(--accent);
+}
+
+.target-toolbar-inspect {
+  color: var(--accent);
+  border-color: rgba(0, 229, 255, 0.3);
+}
+
+.target-toolbar-inspect:hover {
+  border-color: var(--accent);
+  background: rgba(0, 229, 255, 0.08);
+}
+
+.target-toolbar-inspect.active {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+  cursor: crosshair;
 }
 
 .target-toolbar-exit {

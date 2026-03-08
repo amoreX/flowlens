@@ -1,6 +1,6 @@
 import { emit } from '../core'
 
-const emittedStateSignatures: Record<string, string> = {}
+const lastKnownValues: Record<string, string> = {}
 
 /**
  * Schedule state detection at multiple delays to catch async re-renders.
@@ -130,30 +130,35 @@ function detectStateChanges(element: Element, traceId: string): void {
               if (!seen[key]) {
                 seen[key] = true
 
-                const sourceStack = getFiberSourceStack(f)
-
-                let prevStr: string
                 let curStr: string
-                try {
-                  prevStr = JSON.stringify(prevVal)
-                } catch {
-                  prevStr = String(prevVal)
-                }
                 try {
                   curStr = JSON.stringify(curVal)
                 } catch {
                   curStr = String(curVal)
                 }
 
-                const emittedKey = traceId + ':' + key
-                const signature = prevStr + '->' + curStr
-                if (emittedStateSignatures[emittedKey] === signature) {
+                if (lastKnownValues[key] === curStr) {
                   hookIdx++
                   currentHook = currentHook.next as Record<string, unknown> | null
                   alternateHook = alternateHook.next as Record<string, unknown> | null
                   continue
                 }
-                emittedStateSignatures[emittedKey] = signature
+
+                const prevKnown = lastKnownValues[key]
+                lastKnownValues[key] = curStr
+
+                let prevStr: string
+                if (prevKnown !== undefined) {
+                  prevStr = prevKnown
+                } else {
+                  try {
+                    prevStr = JSON.stringify(prevVal)
+                  } catch {
+                    prevStr = String(prevVal)
+                  }
+                }
+
+                const sourceStack = getFiberSourceStack(f)
 
                 emit(
                   'state-change',

@@ -6,15 +6,11 @@ import { getMainWindow } from './window-manager'
 const WS_PORT = 9230
 
 let wss: WebSocketServer | null = null
-let connectedClients = 0
 
 export function startWsServer(traceEngine: TraceCorrelationEngine): void {
   wss = new WebSocketServer({ port: WS_PORT })
 
   wss.on('connection', (ws: WebSocket) => {
-    connectedClients++
-    notifyRenderer('sdk:connection-count', connectedClients)
-
     ws.on('message', (raw: Buffer | string) => {
       try {
         const msg = JSON.parse(typeof raw === 'string' ? raw : raw.toString())
@@ -22,7 +18,6 @@ export function startWsServer(traceEngine: TraceCorrelationEngine): void {
         if (msg.type === 'event' && msg.payload?.event) {
           const event = msg.payload.event as CapturedEvent
 
-          // Validate required CapturedEvent fields
           if (
             !event.id ||
             !event.traceId ||
@@ -39,20 +34,9 @@ export function startWsServer(traceEngine: TraceCorrelationEngine): void {
           if (mainWindow) {
             mainWindow.webContents.send('trace:event-received', event)
           }
-        } else if (msg.type === 'hello') {
-          notifyRenderer('sdk:connected', msg.payload)
         }
       } catch {
         // Invalid JSON — ignore
-      }
-    })
-
-    ws.on('close', () => {
-      connectedClients--
-      notifyRenderer('sdk:connection-count', connectedClients)
-      if (connectedClients <= 0) {
-        connectedClients = 0
-        notifyRenderer('sdk:disconnected', null)
       }
     })
 
@@ -78,17 +62,5 @@ export function stopWsServer(): void {
   if (wss) {
     wss.close()
     wss = null
-    connectedClients = 0
-  }
-}
-
-export function getConnectedClientCount(): number {
-  return connectedClients
-}
-
-function notifyRenderer(channel: string, data: unknown): void {
-  const mainWindow = getMainWindow()
-  if (mainWindow) {
-    mainWindow.webContents.send(channel, data)
   }
 }

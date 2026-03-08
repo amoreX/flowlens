@@ -161,6 +161,208 @@ export function reloadTargetView(): { success: boolean; reason?: string } {
   return { success: true }
 }
 
+export interface InspectResult {
+  cancelled?: boolean
+  tagName?: string
+  id?: string
+  className?: string
+  componentName?: string
+  sourceFile?: string
+  sourceLine?: number
+}
+
+export async function startInspectMode(): Promise<InspectResult> {
+  if (!targetView) {
+    return { cancelled: true }
+  }
+  if (targetView.webContents.isLoadingMainFrame()) {
+    return { cancelled: true }
+  }
+
+  const css = [
+    '#__flowlens_inspect_overlay {',
+    '  position: fixed; pointer-events: none; border: 2px solid #00e5ff;',
+    '  background: rgba(0,229,255,0.08); border-radius: 3px;',
+    '  z-index: 2147483647;',
+    '  transition: top 60ms ease, left 60ms ease, width 60ms ease, height 60ms ease;',
+    '}',
+    '#__flowlens_inspect_tooltip {',
+    '  position: fixed; pointer-events: none; z-index: 2147483647;',
+    "  font-family: 'JetBrains Mono','SF Mono',Consolas,monospace;",
+    '  font-size: 11px; line-height: 1.4; color: #e0e0e0;',
+    '  background: rgba(10,14,26,0.92); border: 1px solid rgba(0,229,255,0.3);',
+    '  border-radius: 4px; padding: 4px 8px; white-space: nowrap;',
+    '  max-width: 400px; overflow: hidden; text-overflow: ellipsis;',
+    '  backdrop-filter: blur(8px);',
+    '}',
+    '#__flowlens_inspect_tooltip .fl-tag { color: #00e5ff; font-weight: 600; }',
+    '#__flowlens_inspect_tooltip .fl-dim { color: #888; margin-left: 6px; }',
+    '#__flowlens_inspect_tooltip .fl-comp { color: #b388ff; display: block; }',
+    '#__flowlens_inspect_tooltip .fl-src { color: #69f0ae; display: block; font-size: 10px; }'
+  ].join('\n')
+
+  const script = `new Promise(function(resolve) {
+  var OID = '__flowlens_inspect_overlay';
+  var TID = '__flowlens_inspect_tooltip';
+  var SID = '__flowlens_inspect_style';
+  if (document.getElementById(OID)) { resolve({ cancelled: true }); return; }
+  if (!document.getElementById(SID)) {
+    var s = document.createElement('style');
+    s.id = SID;
+    s.textContent = ${JSON.stringify(css)};
+    document.head.appendChild(s);
+  }
+  var overlay = document.createElement('div');
+  overlay.id = OID;
+  document.body.appendChild(overlay);
+  var tip = document.createElement('div');
+  tip.id = TID;
+  document.body.appendChild(tip);
+  var lastEl = null;
+
+  function getReactInfo(el) {
+    var node = el;
+    while (node) {
+      var keys = Object.keys(node);
+      for (var i = 0; i < keys.length; i++) {
+        if (keys[i].indexOf('__reactFiber$') === 0) {
+          var f = node[keys[i]];
+          while (f) {
+            if (typeof f.type === 'function') {
+              var name = (f.type.displayName || f.type.name) || null;
+              if (name) {
+                var sf = null, sl = null;
+                var ds = f._debugStack;
+                if (ds && ds.stack) {
+                  var slines = ds.stack.split('\\n');
+                  for (var j = 0; j < slines.length; j++) {
+                    var m = slines[j].match(/\\((.+?):(\\d+):\\d+\\)/);
+                    if (m && m[1].indexOf('node_modules') < 0 && m[1].indexOf('__flowlens') < 0) {
+                      sf = m[1]; sl = parseInt(m[2], 10); break;
+                    }
+                  }
+                }
+                if (!sf) {
+                  var dbg = f._debugSource;
+                  if (dbg && dbg.fileName) {
+                    sf = dbg.fileName;
+                    if (sf.indexOf('://') === -1) {
+                      var si = sf.indexOf('/src/');
+                      if (si >= 0) sf = location.origin + sf.slice(si);
+                      else if (sf.charAt(0) === '/') sf = location.origin + sf;
+                    }
+                    sl = dbg.lineNumber || 1;
+                  }
+                }
+                return { name: name, sourceFile: sf, sourceLine: sl };
+              }
+            }
+            f = f.return;
+          }
+          break;
+        }
+      }
+      node = node.parentElement;
+    }
+    return null;
+  }
+
+  function updateOverlay(el) {
+    if (!el || el === document.body || el === document.documentElement) {
+      overlay.style.display = 'none'; tip.style.display = 'none'; return;
+    }
+    var rect = el.getBoundingClientRect();
+    overlay.style.display = 'block';
+    overlay.style.top = rect.top + 'px';
+    overlay.style.left = rect.left + 'px';
+    overlay.style.width = rect.width + 'px';
+    overlay.style.height = rect.height + 'px';
+    var label = '<span class="fl-tag">' + el.tagName.toLowerCase();
+    if (el.id) label += '#' + el.id;
+    if (el.className && typeof el.className === 'string') {
+      var cls = el.className.trim().split(/\\s+/).slice(0, 3).join('.');
+      if (cls) label += '.' + cls;
+    }
+    label += '</span>';
+    label += '<span class="fl-dim">' + Math.round(rect.width) + ' x ' + Math.round(rect.height) + '</span>';
+    var ri = getReactInfo(el);
+    if (ri) {
+      label += '<span class="fl-comp">' + ri.name + '</span>';
+      if (ri.sourceFile) {
+        var short = ri.sourceFile;
+        var srcI = short.indexOf('/src/');
+        if (srcI >= 0) short = short.slice(srcI + 1);
+        if (ri.sourceLine) short += ':' + ri.sourceLine;
+        label += '<span class="fl-src">' + short + '</span>';
+      }
+    }
+    tip.innerHTML = label;
+    tip.style.display = 'block';
+    var tipY = rect.top > 40 ? rect.top - tip.offsetHeight - 6 : rect.bottom + 6;
+    var tipX = Math.min(rect.left, window.innerWidth - tip.offsetWidth - 8);
+    tip.style.top = Math.max(2, tipY) + 'px';
+    tip.style.left = Math.max(2, tipX) + 'px';
+  }
+
+  function onMove(e) {
+    e.stopImmediatePropagation();
+    var el = document.elementFromPoint(e.clientX, e.clientY);
+    if (el && el !== overlay && el !== tip && el !== lastEl) {
+      lastEl = el; updateOverlay(el);
+    }
+  }
+  function cleanup() {
+    document.removeEventListener('mousemove', onMove, true);
+    document.removeEventListener('click', onClick, true);
+    document.removeEventListener('keydown', onKey, true);
+    overlay.remove(); tip.remove();
+    document.body.style.cursor = '';
+  }
+  function onClick(e) {
+    e.preventDefault(); e.stopImmediatePropagation(); e.stopPropagation();
+    var el = lastEl || document.elementFromPoint(e.clientX, e.clientY);
+    cleanup();
+    if (!el) { resolve({ cancelled: true }); return; }
+    var ri = getReactInfo(el);
+    resolve({
+      tagName: el.tagName || '', id: el.id || '',
+      className: typeof el.className === 'string' ? el.className : '',
+      componentName: ri ? ri.name : '',
+      sourceFile: ri ? ri.sourceFile : null,
+      sourceLine: ri ? ri.sourceLine : null
+    });
+  }
+  function onKey(e) {
+    if (e.key === 'Escape') {
+      e.preventDefault(); e.stopImmediatePropagation();
+      cleanup(); resolve({ cancelled: true });
+    }
+  }
+  document.addEventListener('mousemove', onMove, true);
+  document.addEventListener('click', onClick, true);
+  document.addEventListener('keydown', onKey, true);
+  document.body.style.cursor = 'crosshair';
+})`
+
+  try {
+    const result = await targetView.webContents.executeJavaScript(script)
+    return result as InspectResult
+  } catch {
+    return { cancelled: true }
+  }
+}
+
+export function stopInspectMode(): void {
+  if (!targetView) return
+  targetView.webContents.executeJavaScript(`(() => {
+    const overlay = document.getElementById('__flowlens_inspect_overlay');
+    const tooltip = document.getElementById('__flowlens_inspect_tooltip');
+    if (overlay) overlay.remove();
+    if (tooltip) tooltip.remove();
+    document.body.style.cursor = '';
+  })()`)
+}
+
 export interface TargetHighlightResult {
   success: boolean
   reason?: string
