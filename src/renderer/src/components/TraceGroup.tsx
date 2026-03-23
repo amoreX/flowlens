@@ -48,8 +48,8 @@ export function TraceGroup({ trace, selectedEventId, focusedEventId, onSelectEve
 
   return (
     <div className={`trace-group${isFocusedTrace ? ' focused' : ''}`} data-tour={dataTour}>
-      <div className="trace-group-header" onClick={() => setExpanded(!expanded)}>
-        <span className={`trace-group-chevron${expanded ? ' expanded' : ''}`}>&#9654;</span>
+      <div className="trace-group-header" onClick={() => setExpanded(!expanded)} role="button" tabIndex={0} aria-expanded={expanded} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded(!expanded) } }}>
+        <span className={`trace-group-chevron${expanded ? ' expanded' : ''}`} aria-hidden="true">&#9654;</span>
         <span className="trace-group-label">{getTraceLabel(trace)}</span>
         <div className="trace-group-meta">
           <EventBadge count={trace.events.length} />
@@ -57,6 +57,7 @@ export function TraceGroup({ trace, selectedEventId, focusedEventId, onSelectEve
           <button
             className="trace-focus-btn"
             title="Focus source on this trace"
+            aria-label="Focus source on this trace"
             onClick={(e) => {
               e.stopPropagation()
               onFocusTrace(trace.id)
@@ -67,6 +68,7 @@ export function TraceGroup({ trace, selectedEventId, focusedEventId, onSelectEve
           <button
             className="trace-details-btn"
             title="Open event details"
+            aria-label="Open event details"
             onClick={(e) => {
               e.stopPropagation()
               onOpenTraceDetails(trace.id)

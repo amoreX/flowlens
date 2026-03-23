@@ -56,6 +56,7 @@ export function FlowNavigator({ events, currentIndex, onPrev, onNext, onClose }:
         onClick={onPrev}
         disabled={currentIndex === 0}
         title="Previous event"
+        aria-label="Previous event"
       >
         &#8592;
       </button>
@@ -73,11 +74,12 @@ export function FlowNavigator({ events, currentIndex, onPrev, onNext, onClose }:
         onClick={onNext}
         disabled={currentIndex === events.length - 1}
         title="Next event"
+        aria-label="Next event"
       >
         &#8594;
       </button>
 
-      <button className="flow-nav-close" onClick={onClose} title="Exit flow navigation">
+      <button className="flow-nav-close" onClick={onClose} title="Exit flow navigation" aria-label="Exit flow navigation">
         &times;
       </button>
     </div>

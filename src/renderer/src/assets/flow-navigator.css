@@ -16,13 +16,13 @@
   background: transparent;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  width: 28px;
-  height: 24px;
+  width: 32px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 150ms ease;
+  transition: all 150ms ease-out;
   flex-shrink: 0;
 }
 
@@ -58,6 +58,7 @@
   font-weight: 600;
   color: var(--blue);
   flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
 }
 
 .flow-nav-summary {

@@ -4,7 +4,7 @@
   right: 0;
   bottom: 0;
   width: 45%;
-  z-index: 100;
+  z-index: var(--z-modal);
   pointer-events: none;
 }
 
@@ -21,7 +21,7 @@
   display: flex;
   flex-direction: column;
   pointer-events: auto;
-  animation: slideInPanel 220ms ease;
+  animation: slideInPanel 220ms ease-out;
 }
 
 @keyframes slideInPanel {
@@ -63,6 +63,10 @@
 
 .detail-panel-close:hover {
   color: var(--text-primary);
+}
+
+.detail-panel-close:active {
+  transform: scale(0.9);
 }
 
 .detail-panel-body {

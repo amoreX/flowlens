@@ -180,7 +180,7 @@ export function TourOverlay({ onComplete, onStepChange }: TourOverlayProps) {
     const isWelcome = step === 0
     const isFinish = step === totalSteps - 1
     return (
-      <div className="tour-fullscreen">
+      <div className="tour-fullscreen" role="dialog" aria-label="FlowLens guided tour">
         <div className="tour-card">
           <h2 className="tour-card-title">
             {isWelcome ? (
@@ -246,6 +246,8 @@ export function TourOverlay({ onComplete, onStepChange }: TourOverlayProps) {
         key={tooltipKey}
         className="tour-tooltip"
         style={getTooltipStyle()}
+        role="dialog"
+        aria-label={`Tour step: ${currentStep.title}`}
       >
         <span className="tour-tooltip-step">
           Step {step} of {totalSteps - 2}

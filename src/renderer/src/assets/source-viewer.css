@@ -110,6 +110,7 @@
   user-select: none;
   flex-shrink: 0;
   opacity: 0.6;
+  font-variant-numeric: tabular-nums;
 }
 
 .source-line-highlight .source-line-number {

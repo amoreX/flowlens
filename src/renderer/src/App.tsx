@@ -143,6 +143,7 @@ export default function App() {
             spellCheck={false}
             autoCorrect="off"
             autoComplete="off"
+            aria-label="Target URL"
           />
           <button type="submit" className="target-toolbar-go no-drag">
             Go
@@ -167,6 +168,8 @@ export default function App() {
         <div
           className={`split-resize-handle${draggingSplit ? ' dragging' : ''}`}
           onMouseDown={onSplitDragStart}
+          role="separator"
+          aria-label="Resize target site and panel"
         />
       )}
       {mode === 'onboarding' && (

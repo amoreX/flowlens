@@ -380,6 +380,8 @@ export function TracePage({ onStop: _onStop, inspectedSource, onClearInspectedSo
         <div
           className={`resize-handle-v${dragging === 'v' ? ' dragging' : ''}`}
           onMouseDown={onVDragStart}
+          role="separator"
+          aria-label="Resize traces and source panels"
         />
 
         <div className="source-column" data-tour="source-panel">
@@ -406,6 +408,8 @@ export function TracePage({ onStop: _onStop, inspectedSource, onClearInspectedSo
       <div
         className={`resize-handle-h${dragging === 'h' ? ' dragging' : ''}`}
         onMouseDown={bottomCollapsed ? undefined : onHDragStart}
+        role="separator"
+        aria-label="Resize main and bottom panels"
       />
 
       <div
@@ -417,13 +421,17 @@ export function TracePage({ onStop: _onStop, inspectedSource, onClearInspectedSo
           <button
             className="bottom-section-collapse"
             onClick={() => setBottomCollapsed(!bottomCollapsed)}
-            title={bottomCollapsed ? 'Expand' : 'Collapse'}
+            title={bottomCollapsed ? 'Expand panel' : 'Collapse panel'}
+            aria-label={bottomCollapsed ? 'Expand panel' : 'Collapse panel'}
+            aria-expanded={!bottomCollapsed}
           >
-            <span className={`bottom-section-chevron${bottomCollapsed ? '' : ' expanded'}`}>&#9654;</span>
+            <span className={`bottom-section-chevron${bottomCollapsed ? '' : ' expanded'}`} aria-hidden="true">&#9654;</span>
           </button>
           <button
             className={`bottom-tab${bottomTab === 'console' ? ' active' : ''}`}
             onClick={() => { setBottomTab('console'); setBottomCollapsed(false) }}
+            role="tab"
+            aria-selected={bottomTab === 'console'}
           >
             Console
             {consoleEntries.allEntries.length > 0 && (
@@ -433,6 +441,8 @@ export function TracePage({ onStop: _onStop, inspectedSource, onClearInspectedSo
           <button
             className={`bottom-tab${bottomTab === 'inspector' ? ' active' : ''}`}
             onClick={() => { setBottomTab('inspector'); setBottomCollapsed(false) }}
+            role="tab"
+            aria-selected={bottomTab === 'inspector'}
           >
             Inspector
             {inspectorEntries.totalCount > 0 && (

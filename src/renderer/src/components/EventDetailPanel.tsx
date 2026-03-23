@@ -81,7 +81,7 @@ export function EventDetailPanel({ event, onClose }: EventDetailPanelProps) {
       <div className="detail-panel">
         <div className="detail-panel-header">
           <h3 className="detail-panel-title">Event Details</h3>
-          <button className="detail-panel-close no-drag" onClick={onClose}>
+          <button className="detail-panel-close no-drag" onClick={onClose} aria-label="Close event details">
             &times;
           </button>
         </div>

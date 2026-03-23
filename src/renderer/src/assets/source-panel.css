@@ -113,6 +113,7 @@
   user-select: none;
   flex-shrink: 0;
   opacity: 0.6;
+  font-variant-numeric: tabular-nums;
 }
 
 .source-panel-line-content {
@@ -257,6 +258,7 @@
   align-items: center;
   justify-content: center;
   opacity: 0.9;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Loading / error / empty states */
@@ -282,6 +284,7 @@
   color: var(--text-tertiary);
   max-width: 260px;
   line-height: 1.6;
+  text-wrap: pretty;
 }
 
 .source-panel-loading {
@@ -352,6 +355,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  font-variant-numeric: tabular-nums;
 }
 
 .call-stack-frames {

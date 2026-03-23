@@ -74,6 +74,10 @@
   background: var(--red-bg);
 }
 
+.console-clear-btn:active {
+  transform: scale(0.97);
+}
+
 /* Log list — dark terminal surface */
 .console-log-list {
   flex: 1;
@@ -96,7 +100,7 @@
   padding: var(--space-1) var(--space-4);
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
   transition: background var(--transition-fast);
-  animation: consoleSlide 150ms ease;
+  animation: consoleSlide 150ms ease-out;
 }
 
 @keyframes consoleSlide {
@@ -129,6 +133,7 @@
   flex-shrink: 0;
   min-width: 72px;
   user-select: none;
+  font-variant-numeric: tabular-nums;
 }
 
 .console-level-badge {
@@ -196,6 +201,7 @@
   font-size: var(--text-xs);
   color: var(--text-dark-tertiary);
   line-height: 1.6;
+  text-wrap: pretty;
 }
 
 /* Scroll to bottom FAB */
@@ -222,4 +228,8 @@
 .console-scroll-fab:hover {
   border-color: var(--accent);
   color: var(--accent);
+}
+
+.console-scroll-fab:active {
+  transform: scale(0.93);
 }

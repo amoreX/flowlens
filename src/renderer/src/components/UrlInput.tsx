@@ -59,12 +59,15 @@ export function UrlInput({ onLaunch }: UrlInputProps) {
           spellCheck={false}
           autoComplete="off"
           autoCorrect="off"
+          aria-label="URL to trace"
+          aria-invalid={!!error}
+          aria-describedby={error ? 'url-input-error' : undefined}
         />
-        <button type="submit" className="url-launch-btn no-drag" disabled={loading}>
+        <button type="submit" className="url-launch-btn no-drag" disabled={loading} aria-label="Launch URL">
           {loading ? '...' : '\u2192'}
         </button>
       </form>
-      {error && <div className="url-input-error">{error}</div>}
+      {error && <div id="url-input-error" className="url-input-error" role="alert">{error}</div>}
     </div>
   )
 }

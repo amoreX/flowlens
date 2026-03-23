@@ -211,7 +211,7 @@ function InspectedSourceView({
           {displayPath}
         </button>
         {onClose && (
-          <button className="source-file-tab source-inspect-close" onClick={onClose} title="Close inspect view">
+          <button className="source-file-tab source-inspect-close" onClick={onClose} title="Close inspect view" aria-label="Close inspect view">
             ✕
           </button>
         )}
@@ -484,8 +484,10 @@ function FocusedSourceView({
           <button
             className="call-stack-toggle"
             onClick={() => setCallStackOpen((v) => !v)}
+            aria-expanded={callStackOpen}
+            aria-label="Toggle call stack"
           >
-            <span className="call-stack-toggle-icon">{callStackOpen ? '\u25BC' : '\u25B6'}</span>
+            <span className="call-stack-toggle-icon" aria-hidden="true">{callStackOpen ? '\u25BC' : '\u25B6'}</span>
             <span className="call-stack-toggle-label">Call Stack</span>
             <span className="call-stack-count">{frames.length}</span>
           </button>

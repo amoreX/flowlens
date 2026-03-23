@@ -54,7 +54,8 @@
   letter-spacing: -0.04em;
   line-height: 1;
   text-align: center;
-  animation: fadeUp 400ms ease both;
+  text-wrap: balance;
+  animation: fadeUp 400ms ease-out both;
 }
 
 .onboarding-title span {
@@ -68,13 +69,14 @@
   text-align: center;
   max-width: 320px;
   line-height: 1.6;
-  animation: fadeUp 400ms 60ms ease both;
+  text-wrap: pretty;
+  animation: fadeUp 400ms 60ms ease-out both;
 }
 
 /* ── URL Input (inline row) ── */
 .url-input-wrapper {
   width: 100%;
-  animation: fadeUp 400ms 120ms ease both;
+  animation: fadeUp 400ms 120ms ease-out both;
 }
 
 .url-input-row {
@@ -126,6 +128,10 @@
   background: var(--accent-dim);
 }
 
+.url-launch-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
 .url-launch-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
@@ -144,7 +150,7 @@
   gap: var(--space-2);
   flex-wrap: wrap;
   justify-content: center;
-  animation: fadeUp 400ms 180ms ease both;
+  animation: fadeUp 400ms 180ms ease-out both;
 }
 
 .hint-badge {
@@ -166,6 +172,10 @@
   background: var(--accent-bg);
 }
 
+.hint-badge:active {
+  transform: scale(0.97);
+}
+
 /* ── Tour CTA ── */
 .tour-cta {
   font-family: var(--font-sans);
@@ -177,14 +187,18 @@
   border-radius: var(--radius-lg);
   padding: 10px 24px;
   cursor: pointer;
-  transition: background var(--transition-fast);
-  animation: fadeUp 400ms 240ms ease both;
+  transition: background var(--transition-fast), transform var(--transition-fast);
+  animation: fadeUp 400ms 240ms ease-out both;
   margin-top: var(--space-2);
   line-height: 1;
 }
 
 .tour-cta:hover {
   background: var(--accent-dim);
+}
+
+.tour-cta:active {
+  transform: scale(0.97);
 }
 
 .tour-retake {
@@ -196,7 +210,7 @@
   border: none;
   cursor: pointer;
   transition: color var(--transition-fast);
-  animation: fadeUp 400ms 240ms ease both;
+  animation: fadeUp 400ms 240ms ease-out both;
   margin-top: var(--space-2);
   text-decoration: underline;
   text-decoration-color: transparent;

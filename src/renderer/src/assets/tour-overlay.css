@@ -6,7 +6,9 @@
   -webkit-app-region: no-drag;
 }
 
-/* Spotlight: positioned over the highlighted element, dims everything else via massive box-shadow */
+/* Spotlight: positioned over the highlighted element, dims everything else via massive box-shadow.
+   Note: top/left/width/height transitions are acceptable here because the spotlight is a small,
+   isolated element (not a large surface) and moves infrequently (step changes only). */
 .tour-spotlight {
   position: fixed;
   z-index: 99999;
@@ -23,6 +25,7 @@
     left var(--transition-slow),
     width var(--transition-slow),
     height var(--transition-slow);
+  contain: layout;
 }
 
 /* Tooltip card anchored near the spotlight */
@@ -39,7 +42,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  animation: tourTooltipIn 250ms ease both;
+  animation: tourTooltipIn 250ms ease-out both;
   -webkit-app-region: no-drag;
 }
 
@@ -64,6 +67,7 @@
   color: var(--text-primary);
   line-height: 1.3;
   margin: 0;
+  text-wrap: balance;
 }
 
 .tour-tooltip-desc {
@@ -72,6 +76,7 @@
   color: var(--text-secondary);
   line-height: 1.6;
   margin: 0;
+  text-wrap: pretty;
 }
 
 .tour-tooltip-controls {
@@ -139,6 +144,10 @@
   background: var(--accent-dim);
 }
 
+.tour-btn-next:active {
+  transform: scale(0.97);
+}
+
 .tour-btn-back {
   background: none;
   border: 1px solid var(--border);
@@ -187,7 +196,7 @@
   padding: var(--space-8) var(--space-12);
   max-width: 440px;
   text-align: center;
-  animation: tourCardIn 400ms ease both;
+  animation: tourCardIn 400ms ease-out both;
 }
 
 @keyframes tourCardIn {
@@ -203,6 +212,7 @@
   letter-spacing: -0.03em;
   line-height: 1.2;
   margin: 0;
+  text-wrap: balance;
 }
 
 .tour-card-title span {
@@ -216,6 +226,7 @@
   line-height: 1.6;
   max-width: 340px;
   margin: 0;
+  text-wrap: pretty;
 }
 
 .tour-card-btn {
@@ -235,4 +246,8 @@
 
 .tour-card-btn:hover {
   background: var(--accent-dim);
+}
+
+.tour-card-btn:active {
+  transform: scale(0.97);
 }

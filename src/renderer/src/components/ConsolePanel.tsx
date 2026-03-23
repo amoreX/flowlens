@@ -57,6 +57,7 @@ export function ConsolePanel({ entries, filter, onFilterChange, onClear }: Conso
             key={level}
             className={`console-filter-btn level-${level}${filter === level ? ' active' : ''}`}
             onClick={() => onFilterChange(level)}
+            aria-pressed={filter === level}
           >
             {level}
           </button>
@@ -84,7 +85,7 @@ export function ConsolePanel({ entries, filter, onFilterChange, onClear }: Conso
       )}
 
       {showFab && (
-        <button className="console-scroll-fab" onClick={scrollToBottom} title="Scroll to bottom">
+        <button className="console-scroll-fab" onClick={scrollToBottom} title="Scroll to bottom" aria-label="Scroll to bottom">
           &#8595;
         </button>
       )}

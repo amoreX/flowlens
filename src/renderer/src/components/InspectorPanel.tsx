@@ -174,6 +174,8 @@ export function InspectorPanel({ stateChanges, responses, onClear, focusedEventI
         <button
           className={`inspector-tab-btn${tab === 'state' ? ' active' : ''}`}
           onClick={() => setTab('state')}
+          role="tab"
+          aria-selected={tab === 'state'}
         >
           State
           {stateChanges.length > 0 && (
@@ -183,6 +185,8 @@ export function InspectorPanel({ stateChanges, responses, onClear, focusedEventI
         <button
           className={`inspector-tab-btn${tab === 'responses' ? ' active' : ''}`}
           onClick={() => setTab('responses')}
+          role="tab"
+          aria-selected={tab === 'responses'}
         >
           Responses
           {responses.length > 0 && (
@@ -224,7 +228,7 @@ export function InspectorPanel({ stateChanges, responses, onClear, focusedEventI
       )}
 
       {showFab && (
-        <button className="inspector-scroll-fab" onClick={scrollToBottom} title="Scroll to bottom">
+        <button className="inspector-scroll-fab" onClick={scrollToBottom} title="Scroll to bottom" aria-label="Scroll to bottom">
           &#8595;
         </button>
       )}

@@ -55,6 +55,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  font-variant-numeric: tabular-nums;
 }
 
 .inspector-tab-btn.active .inspector-tab-count {
@@ -85,6 +86,10 @@
   background: var(--red-bg);
 }
 
+.inspector-clear-btn:active {
+  transform: scale(0.97);
+}
+
 /* ── List ── */
 .inspector-list {
   flex: 1;
@@ -108,7 +113,7 @@
   padding: var(--space-1) var(--space-4);
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
   transition: background var(--transition-fast);
-  animation: inspectorSlide 150ms ease;
+  animation: inspectorSlide 150ms ease-out;
 }
 
 @keyframes inspectorSlide {
@@ -150,6 +155,7 @@
   flex-shrink: 0;
   min-width: 72px;
   user-select: none;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ── State change row ── */
@@ -291,6 +297,7 @@
   color: var(--text-dark-tertiary);
   flex-shrink: 0;
   opacity: 0.7;
+  font-variant-numeric: tabular-nums;
 }
 
 .inspector-body-toggle {
@@ -365,4 +372,8 @@
 .inspector-scroll-fab:hover {
   border-color: var(--accent);
   color: var(--accent);
+}
+
+.inspector-scroll-fab:active {
+  transform: scale(0.93);
 }
