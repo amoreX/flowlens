@@ -10,6 +10,7 @@ interface TraceGroupProps {
   onSelectEvent: (event: CapturedEvent) => void
   onFocusTrace: (traceId: string) => void
   onOpenTraceDetails: (traceId: string) => void
+  dataTour?: string
 }
 
 function formatTime(ts: number): string {
@@ -35,7 +36,7 @@ function getTraceLabel(trace: TraceData): string {
   return `${root.type}`
 }
 
-export function TraceGroup({ trace, selectedEventId, focusedEventId, onSelectEvent, onFocusTrace, onOpenTraceDetails }: TraceGroupProps) {
+export function TraceGroup({ trace, selectedEventId, focusedEventId, onSelectEvent, onFocusTrace, onOpenTraceDetails, dataTour }: TraceGroupProps) {
   // Auto-expand if this trace contains the focused event
   const containsFocused = focusedEventId ? trace.events.some((e) => e.id === focusedEventId) : false
   const [expanded, setExpanded] = useState(true)
@@ -46,7 +47,7 @@ export function TraceGroup({ trace, selectedEventId, focusedEventId, onSelectEve
   const isFocusedTrace = containsFocused
 
   return (
-    <div className={`trace-group${isFocusedTrace ? ' focused' : ''}`}>
+    <div className={`trace-group${isFocusedTrace ? ' focused' : ''}`} data-tour={dataTour}>
       <div className="trace-group-header" onClick={() => setExpanded(!expanded)}>
         <span className={`trace-group-chevron${expanded ? ' expanded' : ''}`}>&#9654;</span>
         <span className="trace-group-label">{getTraceLabel(trace)}</span>

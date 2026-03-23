@@ -50,6 +50,12 @@ body {
   margin-left: 0;
 }
 
+/* Tour mode: full width, same as onboarding */
+.flowlens-app.mode-tour {
+  width: 100%;
+  margin-left: 0;
+}
+
 /* Trace mode: width and margin set dynamically via inline style */
 .flowlens-app.mode-trace {
   height: 100%;

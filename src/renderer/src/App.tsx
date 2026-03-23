@@ -2,7 +2,9 @@ import { useState, useCallback, useEffect } from 'react'
 import { OnboardingPage } from './pages/OnboardingPage'
 import { TracePage } from './pages/TracePage'
 
-type AppMode = 'onboarding' | 'trace'
+type AppMode = 'onboarding' | 'trace' | 'tour'
+
+const TOUR_STORAGE_KEY = 'flowlens-tour-completed'
 
 function normalizeTargetUrl(raw: string): string | null {
   const trimmed = raw.trim()
@@ -27,6 +29,17 @@ export default function App() {
   const [draggingSplit, setDraggingSplit] = useState(false)
   const [inspecting, setInspecting] = useState(false)
   const [inspectedSource, setInspectedSource] = useState<{ file: string; line: number } | null>(null)
+  const [hasCompletedTour, setHasCompletedTour] = useState(() => localStorage.getItem(TOUR_STORAGE_KEY) === 'true')
+
+  const handleStartTour = useCallback(() => {
+    setMode('tour')
+  }, [])
+
+  const handleTourComplete = useCallback(() => {
+    localStorage.setItem(TOUR_STORAGE_KEY, 'true')
+    setHasCompletedTour(true)
+    setMode('onboarding')
+  }, [])
 
   const handleLaunch = useCallback(async (url: string) => {
     await window.flowlens.loadTargetUrl(url)
@@ -156,13 +169,25 @@ export default function App() {
           onMouseDown={onSplitDragStart}
         />
       )}
-      {mode === 'onboarding' ? (
-        <OnboardingPage onLaunch={handleLaunch} />
-      ) : (
+      {mode === 'onboarding' && (
+        <OnboardingPage
+          onLaunch={handleLaunch}
+          onStartTour={handleStartTour}
+          isFirstTime={!hasCompletedTour}
+        />
+      )}
+      {mode === 'trace' && (
         <TracePage
           onStop={handleStop}
           inspectedSource={inspectedSource}
           onClearInspectedSource={() => setInspectedSource(null)}
+        />
+      )}
+      {mode === 'tour' && (
+        <TracePage
+          onStop={handleTourComplete}
+          demoMode
+          onTourComplete={handleTourComplete}
         />
       )}
     </div>

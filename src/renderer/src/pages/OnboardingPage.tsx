@@ -3,6 +3,8 @@ import '../assets/onboarding.css'
 
 interface OnboardingPageProps {
   onLaunch: (url: string) => void
+  onStartTour: () => void
+  isFirstTime: boolean
 }
 
 const EXAMPLE_URLS = [
@@ -11,7 +13,7 @@ const EXAMPLE_URLS = [
   { label: 'news.ycombinator.com', url: 'https://news.ycombinator.com' }
 ]
 
-export function OnboardingPage({ onLaunch }: OnboardingPageProps) {
+export function OnboardingPage({ onLaunch, onStartTour, isFirstTime }: OnboardingPageProps) {
   return (
     <div className="onboarding">
       <div className="onboarding-grid" />
@@ -34,6 +36,16 @@ export function OnboardingPage({ onLaunch }: OnboardingPageProps) {
             </button>
           ))}
         </div>
+
+        {isFirstTime ? (
+          <button className="tour-cta no-drag" onClick={onStartTour}>
+            Take a Guided Tour
+          </button>
+        ) : (
+          <button className="tour-retake no-drag" onClick={onStartTour}>
+            Retake the tour
+          </button>
+        )}
       </div>
     </div>
   )

@@ -32,7 +32,7 @@ export function Timeline({ traces, selectedEventId, focusedEventId, onSelectEven
             </p>
           </div>
         ) : (
-          traces.map((trace) => (
+          traces.map((trace, i) => (
             <TraceGroup
               key={trace.id}
               trace={trace}
@@ -41,6 +41,7 @@ export function Timeline({ traces, selectedEventId, focusedEventId, onSelectEven
               onSelectEvent={onSelectEvent}
               onFocusTrace={onFocusTrace}
               onOpenTraceDetails={onOpenTraceDetails}
+              dataTour={i === 0 ? 'trace-group' : undefined}
             />
           ))
         )}

@@ -218,24 +218,25 @@ function InspectedSourceView({
       </div>
       <div className="source-code-area" ref={codeAreaRef}>
         {lines ? (
-          lines.map((content, i) => {
-            const lineNum = i + 1
-            const isTarget = lineNum === targetLine
-            return (
-              <div
-                key={lineNum}
-                className={`source-line${isTarget ? ' hit-nav-current' : ''}`}
-                data-line={lineNum}
-              >
-                <span className="source-line-number">{lineNum}</span>
-                <span className="source-line-code">
-                  {tokenizeLine(content).map((tok, ti) => (
-                    <span key={ti} className={`tok-${tok.type}`}>{tok.value}</span>
-                  ))}
-                </span>
-              </div>
-            )
-          })
+          <div className="source-code-lines">
+            {lines.map((content, i) => {
+              const lineNum = i + 1
+              const isTarget = lineNum === targetLine
+              return (
+                <div
+                  key={lineNum}
+                  className={`source-panel-line${isTarget ? ' hit-nav-current' : ''}`}
+                  data-line={lineNum}
+                >
+                  <span className="source-panel-line-number">{lineNum}</span>
+                  <code
+                    className="source-panel-line-content"
+                    dangerouslySetInnerHTML={{ __html: tokenizeLine(content) }}
+                  />
+                </div>
+              )
+            })}
+          </div>
         ) : (
           <div className="source-panel-empty">Loading source…</div>
         )}
