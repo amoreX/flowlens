@@ -7,12 +7,6 @@ interface OnboardingPageProps {
   isFirstTime: boolean
 }
 
-const EXAMPLE_URLS = [
-  { label: 'localhost:3099', url: 'http://localhost:3099' },
-  { label: 'example.com', url: 'https://example.com' },
-  { label: 'news.ycombinator.com', url: 'https://news.ycombinator.com' }
-]
-
 export function OnboardingPage({ onLaunch, onStartTour, isFirstTime }: OnboardingPageProps) {
   return (
     <div className="onboarding">
@@ -28,14 +22,6 @@ export function OnboardingPage({ onLaunch, onStartTour, isFirstTime }: Onboardin
         </p>
 
         <UrlInput onLaunch={onLaunch} />
-
-        <div className="onboarding-hints">
-          {EXAMPLE_URLS.map(({ label, url }) => (
-            <button key={url} className="hint-badge no-drag" onClick={() => onLaunch(url)}>
-              {label}
-            </button>
-          ))}
-        </div>
 
         {isFirstTime ? (
           <button className="tour-cta no-drag" onClick={onStartTour}>
