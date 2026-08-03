@@ -4,7 +4,7 @@ FlowLens is an Electron desktop debugging tool for tracing frontend and backend 
 
 Paste a URL and FlowLens loads your app in an embedded browser, auto-injecting instrumentation that captures every DOM event, network call, console log, runtime error, and React state change — zero code changes required on the frontend.
 
-For backend correlation, install `@nihal/flowlens-node` in your server. FlowLens injects a trace ID header (`X-FlowLens-Trace-Id`) into all outgoing fetch/XHR requests. The backend middleware reads this header and reports spans back to FlowLens, so frontend and backend events appear in the same trace.
+For backend correlation, install `@nihal/flowlens-node` in your backend. FlowLens injects a trace ID header (`X-FlowLens-Trace-Id`) into all outgoing fetch/XHR requests. The backend middleware reads this header and reports spans back to FlowLens, so frontend and backend events appear in the same trace.
 
 ## How It Works
 
