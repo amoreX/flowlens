@@ -135,3 +135,4 @@ packages/
 
 - Dev architecture details: `readme_dev.md`
 - Package details: `readme_package.md`
+- Contributing guide: `CONTRIBUTING.md`
