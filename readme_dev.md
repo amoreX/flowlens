@@ -185,12 +185,16 @@ npm install
 npm run dev
 npm run typecheck
 npm run build
+npm run lint
+npm run format
 ```
 
 Current script behavior:
 
 - `npm run dev` builds the instrumentation bundle first (`build:web-sdk`) then runs Electron dev.
 - `npm run build` builds the bundle, typechecks, then builds Electron app.
+- `npm run typecheck` runs `typecheck:node` and `typecheck:web` in sequence (separate `tsconfig.node.json` / `tsconfig.web.json` projects).
+- `npm run lint` runs ESLint with `--fix`; `npm run format` runs Prettier with `--write`.
 
 ---
 
