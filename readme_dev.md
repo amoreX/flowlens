@@ -4,7 +4,7 @@ This guide reflects the current codebase architecture.
 
 ## Overview
 
-Users paste a URL and FlowLens loads it in a sandboxed `WebContentsView`, auto-injecting instrumentation. For backend correlation, users install `@nihal/flowlens-node` middleware.
+Users paste a URL and FlowLens loads it in a sandboxed `WebContentsView`, auto-injecting instrumentation. For backend correlation, users install `@nihal/flowlens-node` middleware, which reads the `X-FlowLens-Trace-Id` header and reports spans.
 
 At app boot, the main process starts:
 
